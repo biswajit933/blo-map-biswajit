@@ -1,0 +1,6141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BLO Smart Map</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111827">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
+
+<style>
+body{margin:0;font-family:Arial;}
+
+*{
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+#map{
+  height:100vh;
+  width:100%;
+
+  transition:
+    filter 0.4s ease,
+    transform 0.4s ease;
+}
+
+/* SEARCH BAR */
+#searchBox{
+  position:fixed;
+  top:max(10px, env(safe-area-inset-top));
+  left:50%;
+  transform:translateX(-50%);
+  z-index:9999;
+  display:flex !important;
+  align-items:center;
+  gap:8px;
+  background:rgba(255,255,255,0.95);
+  padding:8px 10px;
+  border-radius:999px;
+  box-shadow:0 2px 14px rgba(0,0,0,0.18);
+  width:calc(100% - 26px);
+  max-width:520px;
+  box-sizing:border-box;
+  pointer-events:auto;
+}
+
+#searchBox input{
+  flex:1;
+  min-width:0;
+  border:1px solid #d1d5db;
+  border-radius:999px;
+  padding:10px 12px;
+  outline:none;
+  font-size:14px;
+}
+
+#searchBox button{
+  border:none;
+  background:#111827;
+  color:white;
+  border-radius:999px;
+  padding:10px 12px;
+  cursor:pointer;
+}
+
+/* PANEL */
+
+
+#panel.open{
+  display:block;
+  transform:translateY(0);
+  opacity:1;
+  pointer-events:auto;
+  visibility:visible;
+}
+
+#panelContent{
+  min-height:100%;
+}
+
+.member{
+  padding:14px 14px;
+  min-height:52px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,0.08);
+  background:rgba(255,255,255,0.04);
+  color:#f8fafc;
+  margin-bottom:10px;
+  cursor:pointer;
+  transition:background 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+.member:hover{
+  background:rgba(255,255,255,0.1);
+  border-color:rgba(255,255,255,0.15);
+  transform:translateX(2px);
+}
+
+.detail{
+  background:rgba(15,23,42,0.96);
+  padding:14px;
+  margin-top:12px;
+  border-radius:18px;
+  border:1px solid rgba(148,163,184,0.14);
+  box-shadow:0 18px 36px rgba(0,0,0,0.18);
+}
+
+button{
+  padding:10px 14px;
+  min-height:44px;
+  font-size:15px;
+  margin-top:6px;
+  border:none;
+  border-radius:999px;
+  cursor:pointer;
+  transition:transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  box-shadow:0 12px 28px rgba(15,23,42,0.22);
+}
+
+button:hover{
+
+  transform:
+    translateY(-1px)
+    scale(1.02);
+
+}
+
+#smartPanel{
+  display:none !important;
+}
+
+#smartPanel button{
+  display:block;
+  width:140px;
+  margin:5px 0;
+}
+
+#mobileFab{
+  display:block;
+  position:fixed;
+  bottom:18px;
+  right:16px;
+  z-index:1002;
+  width:52px;
+  height:52px;
+  border-radius:50%;
+  background:#1f2937;
+  color:white;
+  font-size:28px;
+  line-height:52px;
+  text-align:center;
+  box-shadow:0 6px 18px rgba(0,0,0,0.25);
+  cursor:pointer;
+}
+
+#recenterBtn{
+  display:block;
+}
+
+#mobileMenu{
+  display:none;
+  position:fixed;
+  top:110px;
+  right:16px;
+  z-index:1002;
+  width:280px;
+  max-height:80vh;
+  overflow:auto;
+  background:rgba(255,255,255,0.97);
+  border-radius:18px;
+  box-shadow:0 6px 24px rgba(0,0,0,0.25);
+  padding:14px;
+  gap:10px;
+  flex-direction:column;
+}
+
+#navStatus{
+  display:none;
+  position:fixed;
+  bottom:18px;
+  left:18px;
+  right:auto;
+  z-index:1003;
+  width:auto;
+  height:auto;
+  background:rgba(8,15,32,0.95);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:999px;
+  padding:8px 10px;
+  backdrop-filter:blur(22px);
+  box-shadow:0 18px 40px rgba(0,0,0,0.28);
+  color:#f8fafc;
+  font-size:13px;
+  overflow:hidden;
+  transition:all 0.35s ease;
+}
+
+#navStatus.nav-on{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:auto;
+  min-width:170px;
+  max-width:260px;
+  height:50px;
+  padding:8px 12px;
+  border-radius:999px;
+
+  box-shadow:
+    0 0 25px rgba(34,197,94,0.35),
+    0 18px 40px rgba(0,0,0,0.28);
+
+  animation:navGlow 2s infinite;
+
+}
+
+#navStatus .navMini{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  height:100%;
+  transition:opacity 0.25s ease;
+}
+
+#navStatus .navExpanded{
+  opacity:1;
+  transform:none;
+  pointer-events:auto;
+  transition:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:100%;
+  gap:10px;
+}
+
+#navStatus.nav-on .navMini{
+  opacity:0;
+  pointer-events:none;
+}
+
+#navStatus.nav-on .navExpanded{
+  opacity:1;
+  transform:none;
+  pointer-events:auto;
+}
+
+#navStatus.nav-off .navExpanded{
+  opacity:0;
+  transform:translateY(16px);
+  pointer-events:none;
+}
+
+#navStatus.nav-off .navMini{
+  opacity:1;
+}
+
+#navStatus .navMini button{
+  width:56px;
+  height:56px;
+  border-radius:50%;
+  border:none;
+  background:linear-gradient(135deg,#2563eb,#3b82f6);
+  color:white;
+  font-size:24px;
+  cursor:pointer;
+  box-shadow:0 12px 26px rgba(37,99,235,0.35);
+  transition:transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#navStatus .navMini button:hover{
+  transform:scale(1.05);
+  box-shadow:0 16px 32px rgba(37,99,235,0.45);
+}
+
+#navStatus .navStatusTitle{
+  display:none;
+}
+
+#navStatus .navStatusLine{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:0;
+}
+
+#navStatus strong{
+  font-size:13px;
+}
+
+#navStatus .navStatusActions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:0;
+}
+
+#navStatus button{
+  width:auto;
+  min-width:52px;
+  border-radius:999px;
+  background:linear-gradient(135deg, #2563eb, #3b82f6);
+  color:white;
+  border:none;
+  padding:8px 10px;
+  cursor:pointer;
+  font-size:12px;
+  transition:transform 0.25s ease, background 0.25s ease;
+}
+
+#navStatus button:hover{
+  transform:translateY(-1px);
+}
+
+#navStatus.nav-on button#navToggleBtn{
+  background:linear-gradient(135deg, #16a34a, #22c55e);
+}
+
+#navStatus.nav-on button#recenterBtn{
+  background:rgba(255,255,255,0.12);
+  color:#f8fafc;
+}
+
+#navStatus.nav-on #navStatusText{
+  color:#a7f3d0;
+}
+
+#navStatus.nav-off #navStatusText{
+  color:#cbd5e1;
+}
+
+
+#mobileMenu.open{
+  display:flex;
+}
+
+#mobileMenu input{
+  width:100%;
+  border:1px solid #d1d5db;
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:14px;
+  outline:none;
+}
+
+#mobileMenu button{
+  width:100%;
+  border:none;
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:14px;
+  background:#f3f4f6;
+  color:#111;
+  cursor:pointer;
+  text-align:left;
+}
+
+#mobileMenu button:hover{
+  background:#e5e7eb;
+}
+
+#dashboardPanel{
+  display:none !important;
+}
+
+.dashboardTitle{
+  font-size:13px;
+  font-weight:bold;
+  margin-bottom:8px;
+}
+
+.dashboardRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:6px 0;
+  border-top:1px solid #eee;
+}
+
+.dashboardRow:first-of-type{
+  border-top:none;
+}
+
+.dashboardLabel{
+  color:#444;
+}
+
+.dashboardValue{
+  font-weight:bold;
+  color:#111;
+}
+
+.dashboardValueVisited{
+  color:#16a34a;
+}
+
+.dashboardValueRemain{
+  color:#dc2626;
+}
+
+.dashboardProgress{
+  height:6px;
+  background:#e5e7eb;
+  border-radius:999px;
+  overflow:hidden;
+  margin-top:8px;
+}
+
+.dashboardProgressFill{
+  height:100%;
+  width:0%;
+  background:#16a34a;
+  transition:width 0.2s ease;
+}
+
+.visit{background:#16a34a;color:white;}
+.unvisit{background:#dc2626;color:white;}
+
+/* 🎬 MODERN CLUSTER POPUP */
+#clusterPopup{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  background:rgba(8,12,28,0.96);
+  color:#f8fafc;
+  padding:14px;
+  border-radius:20px;
+  z-index:1200;
+  width:auto;
+  min-width:220px;
+  max-width:260px;
+  max-height:72vh;
+  overflow:auto;
+  box-shadow:0 30px 80px rgba(0,0,0,0.35);
+  border:1px solid rgba(255,255,255,0.08);
+  display:none;
+
+  transition:none;
+  animation:clusterOpen 0.25s ease;
+}
+
+.clusterItem{
+  padding:14px 12px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,0.08);
+  margin-bottom:10px;
+  background:rgba(255,255,255,0.03);
+  cursor:pointer;
+  transition:transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.clusterItem:hover{
+  background:rgba(255,255,255,0.1);
+  transform:translateX(2px);
+}
+
+.clusterItemSelected{
+  background:rgba(147,51,234,0.24);
+  border-color:rgba(147,51,234,0.35);
+}
+
+.clusterHead{
+  display:block;
+  font-weight:800;
+  line-height:1.25;
+}
+
+.clusterMeta{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-top:3px;
+  font-size:12px;
+  opacity:0.86;
+}
+
+.clusterBadge{
+  padding:4px 8px;
+  border-radius:999px;
+  color:#111;
+  font-size:11px;
+  font-weight:700;
+  opacity:1;
+}
+
+.clusterBadgeVisited{
+  background:#86efac;
+}
+
+.clusterBadgeUnvisited{
+  background:#93c5fd;
+}
+
+.clusterSummary{
+  margin:0 0 12px;
+  font-size:13px;
+  opacity:0.9;
+}
+
+.clusterAction{
+  border:none;
+  background:#2563eb;
+  color:white;
+  border-radius:999px;
+  padding:8px 12px;
+  cursor:pointer;
+  font-size:13px;
+  white-space:nowrap;
+  box-shadow:0 10px 24px rgba(37,99,235,0.18);
+}
+
+.clusterAction.unvisit{
+  background:#16a34a;
+}
+
+.clusterStatusBadge{
+  font-size:11px;
+  padding:2px 6px;
+  border-radius:999px;
+  background:rgba(255,255,255,0.12);
+  color:#f8fafc;
+  opacity:0.95;
+}
+
+.familyDetailList{
+  max-height:260px;
+  overflow:auto;
+  margin:0 -10px;
+  padding:6px 10px 0 10px;
+}
+
+.familyDetailItem{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,0.12);
+}
+
+.familyDetailLabel{
+  color:#111;
+  font-weight:600;
+}
+
+.familyDetailSerial{
+  color:#374151;
+  font-size:12px;
+  min-width:70px;
+  text-align:right;
+}
+
+.custom-family-popup .leaflet-popup-content-wrapper{
+  background:rgba(15,23,42,0.96);
+  border-radius:18px;
+  box-shadow:0 18px 36px rgba(0,0,0,0.35);
+}
+
+.custom-family-popup .leaflet-popup-tip{
+  display:none;
+}
+
+.custom-family-popup .leaflet-popup-content{
+  margin:0;
+  padding:14px;
+  color:#f8fafc;
+}
+
+.custom-family-popup .popup-title{
+  font-size:16px;
+  font-weight:700;
+  margin-bottom:4px;
+}
+
+.custom-family-popup .popup-subtitle{
+  color:#94a3b8;
+  font-size:13px;
+  margin-bottom:12px;
+}
+
+.custom-family-popup .familyMemberRow{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  padding:10px 0;
+  border-bottom:1px solid rgba(148,163,184,0.12);
+}
+
+.custom-family-popup .familyMemberRow:last-child{
+  border-bottom:none;
+}
+
+.custom-family-popup .familyMemberName{
+  font-weight:600;
+  font-size:14px;
+  color:#f8fafc;
+}
+
+.custom-family-popup .familyMemberSerial{
+  color:#cbd5e1;
+  font-size:12px;
+  white-space:nowrap;
+}
+
+.custom-family-popup .popup-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 0 10px;
+  border-bottom:1px solid rgba(148,163,184,0.16);
+}
+
+.custom-family-popup .popup-header-title{
+  font-size:16px;
+  font-weight:800;
+  letter-spacing:0.02em;
+  text-transform:uppercase;
+}
+
+.custom-family-popup .popup-status{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.custom-family-popup .popup-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+}
+
+.custom-family-popup .popup-badge.primary{
+  background:rgba(245,158,11,0.16);
+  color:#fbbf24;
+}
+
+.custom-family-popup .popup-badge.success{
+  background:rgba(34,197,94,0.16);
+  color:#86efac;
+}
+
+.custom-family-popup .familyPopupActions{
+  margin-top:18px;
+  display:grid;
+  gap:12px;
+}
+
+.custom-family-popup .familyPopupButton{
+  border:none;
+  border-radius:18px;
+  padding:12px 14px;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  box-shadow:0 14px 28px rgba(0,0,0,0.22);
+}
+
+.custom-family-popup .popup-summary{
+  cursor:pointer;
+  border:1px solid rgba(255,255,255,0.14);
+  border-radius:22px;
+  padding:18px;
+  transition:transform .16s ease, box-shadow .16s ease, background .16s ease;
+  background:linear-gradient(180deg, rgba(15,23,42,0.96), rgba(15,23,42,0.9));
+  box-shadow:0 18px 42px rgba(0,0,0,0.32);
+}
+
+.custom-family-popup .popup-summary:hover{
+  transform:translateY(-2px);
+  box-shadow:0 24px 54px rgba(0,0,0,0.42);
+  background:linear-gradient(180deg, rgba(31,41,55,0.98), rgba(15,23,42,0.92));
+}
+
+.custom-family-popup .popup-tagline{
+  color:#cbd5e1;
+  font-size:12px;
+  margin-top:10px;
+}
+
+.custom-family-popup .popup-expand-label{
+  margin-top:10px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:#f8fafc;
+  font-size:13px;
+  font-weight:700;
+}
+
+.custom-family-popup .popup-expand-label::after{
+  content:'→';
+}
+
+.custom-family-popup .popup-back-button{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 12px;
+  border-radius:999px;
+  background:rgba(255,255,255,0.08);
+  color:#f8fafc;
+  font-size:13px;
+  border:none;
+  cursor:pointer;
+  box-shadow:0 10px 24px rgba(0,0,0,0.2);
+}
+
+.custom-family-popup .popup-expanded-title{
+  margin-top:8px;
+  font-size:20px;
+  font-weight:800;
+  letter-spacing:0.02em;
+}
+
+.custom-family-popup .popup-subtitle{
+  color:#cbd5e1;
+  font-size:13px;
+  margin-top:5px;
+}
+
+.custom-family-popup .familyDetailListExpanded{
+  max-height:280px;
+  overflow:auto;
+  margin-top:14px;
+  border-radius:18px;
+  background:rgba(255,255,255,0.02);
+  padding:10px;
+}
+
+.custom-family-popup .familyDetailItemExpanded{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  padding:14px 12px;
+  border-bottom:1px solid rgba(148,163,184,0.14);
+}
+
+.custom-family-popup .familyDetailItemExpanded:last-child{
+  border-bottom:none;
+}
+
+.custom-family-popup .familyPopupButton.visit{
+  background:linear-gradient(135deg, #16a34a, #22c55e);
+  color:white;
+}
+
+.custom-family-popup .familyPopupButton.unvisit{
+  background:linear-gradient(135deg, #2563eb, #3b82f6);
+  color:white;
+}
+
+/* MOBILE POPUP RESPONSIVENESS */
+@media(max-width:768px){
+  .custom-family-popup .leaflet-popup-content-wrapper{
+    max-width:320px;
+    border-radius:14px;
+  }
+
+  .custom-family-popup .leaflet-popup-content{
+    padding:12px;
+  }
+
+  .custom-family-popup .popup-summary{
+    padding:10px;
+  }
+
+  .custom-family-popup .popup-header-title{
+    font-size:15px;
+  }
+
+  .custom-family-popup .popup-subtitle{
+    font-size:12px;
+  }
+
+  .custom-family-popup .familyDetailList{
+    max-height:200px;
+  }
+
+  .custom-family-popup .familyDetailListExpanded{
+    max-height:240px;
+  }
+
+  .custom-family-popup .familyMemberRow,
+  .custom-family-popup .familyDetailItemExpanded{
+    padding:8px 0;
+    font-size:13px;
+  }
+
+  .custom-family-popup .familyPopupButton{
+    padding:9px 10px;
+    font-size:13px;
+  }
+
+  .custom-family-popup .familyPopupActions{
+    gap:8px;
+  }
+}
+
+.smart-cluster-wrap{
+  background:transparent;
+  border:none;
+}
+
+.smart-cluster{
+  min-width:70px;
+  height:42px;
+  padding:0 6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  color:#111;
+  font-size:12px;
+  font-weight:bold;
+  border:2px solid rgba(255,255,255,0.9);
+  box-shadow:0 2px 10px rgba(0,0,0,0.45);
+  box-sizing:border-box;
+}
+
+.smart-cluster span{
+  min-width:56px;
+  height:28px;
+  padding:0 5px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  background:rgba(255,255,255,0.35);
+  box-sizing:border-box;
+}
+
+.smart-cluster-unvisited{
+  background:#60a5fa;
+}
+
+.smart-cluster-mixed{
+  background:#facc15;
+}
+
+.smart-cluster-visited{
+  background:#86efac;
+}
+
+.smart-cluster-circle{
+
+  background:linear-gradient(
+    135deg,
+    #f472b6,
+    #ec4899
+  ) !important;
+
+  border:4px solid #fbcfe8 !important;
+
+  color:white !important;
+
+  box-shadow:
+    0 0 0 4px rgba(236,72,153,0.25),
+    0 0 18px rgba(236,72,153,0.8);
+
+  animation:clusterPulse 1.6s infinite;
+
+}
+
+@keyframes clusterPulse{
+
+  0%{
+    transform:scale(1);
+  }
+
+  50%{
+    transform:scale(1.08);
+  }
+
+  100%{
+    transform:scale(1);
+  }
+
+}
+
+.selected-family-label{
+  pointer-events:none;
+}
+
+.selected-hud{
+  position:relative;
+  width:240px;
+  height:120px;
+  font-family:Arial, sans-serif;
+  color:#f8fafc;
+  
+}
+
+.selected-hud-target{
+  position:absolute;
+  left:8px;
+  bottom:10px;
+  width:40px;
+  height:40px;
+  border:2px solid rgba(250,204,21,0.95);
+  border-radius:50%;
+  box-shadow:
+    0 0 18px rgba(250,204,21,0.85),
+    inset 0 0 14px rgba(250,204,21,0.35);
+
+    animation:selectedHudPulse 2s infinite;
+}
+
+.selected-hud-target::before,
+.selected-hud-target::after{
+  content:"";
+  position:absolute;
+  background:rgba(250,204,21,0.95);
+  box-shadow:0 0 10px rgba(250,204,21,0.9);
+}
+
+.selected-hud-target::before{
+  left:50%;
+  top:-9px;
+  width:2px;
+  height:58px;
+  transform:translateX(-50%);
+}
+
+.selected-hud-target::after{
+  left:-9px;
+  top:50%;
+  width:58px;
+  height:2px;
+  transform:translateY(-50%);
+}
+
+.selected-hud-dot{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#fb7185;
+  box-shadow:0 0 14px rgba(251,113,133,0.95);
+  transform:translate(-50%,-50%);
+  z-index:2;
+}
+
+.selected-hud-link{
+  position:absolute;
+  left:48px;
+  bottom:30px;
+  width:34px;
+  height:2px;
+  background:linear-gradient(90deg, rgba(250,204,21,0.95), rgba(56,189,248,0.85));
+  box-shadow:0 0 12px rgba(56,189,248,0.85);
+}
+
+.selected-hud-card{
+  position:absolute;
+  left:82px;
+  bottom:14px;
+  min-width:132px;
+  max-width:150px;
+  padding:9px 10px 8px;
+  border:1px solid rgba(56,189,248,0.9);
+  border-left:3px solid #facc15;
+  border-radius:6px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.12), transparent 24%),
+    linear-gradient(135deg, rgba(7,18,32,0.95), rgba(12,34,52,0.82));
+  box-shadow:
+    0 0 0 1px rgba(15,23,42,0.72),
+    0 0 22px rgba(56,189,248,0.55),
+    inset 0 0 18px rgba(56,189,248,0.12);
+  overflow:hidden;
+}
+
+.selected-hud-card::before{
+  content:"";
+  position:absolute;
+  left:-40%;
+  top:0;
+  width:40%;
+  height:100%;
+  background:linear-gradient(90deg, transparent, rgba(125,211,252,0.22), transparent);
+  animation:selectedHudScan 2.4s linear infinite;
+  
+}
+
+.selected-hud-name{
+  position:relative;
+  z-index:1;
+  font-size:13px;
+  line-height:1.18;
+  font-weight:bold;
+  text-transform:uppercase;
+  text-shadow:0 0 8px rgba(125,211,252,0.9);
+  overflow-wrap:anywhere;
+}
+
+.selected-hud-meta{
+  position:relative;
+  z-index:1;
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-top:6px;
+  color:#fde68a;
+  font-size:10px;
+  font-weight:bold;
+}
+
+.selected-hud-meta span{
+  padding:2px 5px;
+  border:1px solid rgba(250,204,21,0.45);
+  border-radius:999px;
+  background:rgba(250,204,21,0.12);
+}
+
+@keyframes selectedHudPulse{
+  0%,100%{
+    transform:scale(0.92);
+    opacity:0.74;
+  }
+  50%{
+    transform:scale(1.08);
+    opacity:1;
+  }
+}
+
+@keyframes selectedHudScan{
+  from{left:-45%;}
+  to{left:115%;}
+}
+
+/* LIVE GPS USER */
+
+.live-user-marker{
+  position:relative;
+  width:90px;
+  height:90px;
+  pointer-events:none;
+}
+
+.live-user-dot{
+  position:absolute;
+  left:50%;
+  top:50%;
+
+  width:24px;
+  height:24px;
+
+  border-radius:50%;
+
+  background:#38bdf8;
+
+  border:4px solid rgba(255,255,255,0.95);
+
+  transform:translate(-50%,-50%);
+
+  transition:all 0.2s ease;
+
+  z-index:6;
+
+  box-shadow:
+    0 0 0 10px rgba(56,189,248,0.18),
+    0 0 35px rgba(56,189,248,0.75);
+}
+
+.live-user-pulse{
+  position:absolute;
+  left:50%;
+  top:50%;
+
+  width:36px;
+  height:36px;
+
+  border-radius:50%;
+
+  background:rgba(56,189,248,0.22);
+
+  transform:translate(-50%,-50%);
+
+  animation:userPulse 2s infinite;
+}
+
+.live-user-ring{
+  position:absolute;
+  left:50%;
+  top:50%;
+
+  width:56px;
+  height:56px;
+
+  border-radius:50%;
+
+  border:3px solid rgba(56,189,248,0.32);
+
+  box-shadow:
+  0 0 18px rgba(56,189,248,0.45);
+
+  transform:translate(-50%,-50%);
+
+  animation:userRing 2.2s infinite;
+}
+
+.nearest-radius-circle{
+  pointer-events:none;
+}
+
+@keyframes userPulse{
+  0%{
+    transform:translate(-50%,-50%) scale(0.5);
+    opacity:1;
+  }
+
+  100%{
+    transform:translate(-50%,-50%) scale(3);
+    opacity:0;
+  }
+}
+
+@keyframes userRing{
+  0%{
+    transform:translate(-50%,-50%) scale(0.8);
+    opacity:0.9;
+  }
+
+  100%{
+    transform:translate(-50%,-50%) scale(1.4);
+    opacity:0;
+  }
+}
+
+  .dynamic-nearby-circle{
+  filter: drop-shadow(0 0 10px #facc15);
+}
+
+.family-float-label{
+  pointer-events:none;
+}
+
+.family-float-hud{
+
+  position:relative;
+
+  width:1px;
+  height:1px;
+
+  overflow:visible;
+
+}
+
+.family-float-card{
+
+  position:absolute;
+
+  left:0;
+  top:-8px;
+
+  transform:
+    translate(-50%,-50%)
+    scale(0.2);
+
+  opacity:0;
+
+  transform-origin:center center;
+
+  animation:
+    cinemaFamilyReveal 0.8s ease forwards;
+
+  will-change:
+    transform,
+    opacity;
+
+}
+
+.family-float-name{
+
+  font-size:11px;
+
+  font-weight:900;
+
+  line-height:1.15;
+
+  text-align:center;
+
+  white-space:nowrap;
+
+  max-width:none;
+
+  letter-spacing:1px;
+
+  color:white;
+
+  padding:2px 8px;
+
+  border-radius:999px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0,0,0,0.72),
+      rgba(15,23,42,0.62)
+    );
+
+  backdrop-filter:blur(4px);
+
+  border:1px solid rgba(255,255,255,0.08);
+
+  transform:translateY(0px);
+
+  text-shadow:
+    0 0 6px rgba(0,0,0,1),
+    0 0 14px rgba(236,72,153,0.9);
+
+  box-shadow:
+    0 0 12px rgba(0,0,0,0.45);
+
+}
+
+.family-float-serial{
+
+  position:absolute;
+
+  left:50%;
+
+  top:-18px;
+
+  transform:translateX(-50%);
+
+  font-size:11px;
+
+  font-weight:900;
+
+  color:#38bdf8;
+
+  z-index:9999;
+
+  white-space:nowrap;
+
+  letter-spacing:0.5px;
+
+  text-shadow:
+    0 0 10px rgba(0,0,0,1),
+    0 0 20px rgba(37,99,235,1),
+    0 0 28px rgba(56,189,248,1);
+
+}
+
+.family-cinema-label{
+  pointer-events:none;
+}
+
+.family-cinema-hud{
+  position:relative;
+  width:1px;
+  height:1px;
+  overflow:visible;
+  font-family:Arial, sans-serif;
+}
+
+.family-cinema-origin{
+  position:absolute;
+  left:0;
+  top:0;
+  width:30px;
+  height:30px;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  background:#ec4899;
+  border:5px solid #facc15;
+  box-shadow:
+    0 0 0 5px rgba(250,204,21,0.22),
+    0 0 26px rgba(236,72,153,0.98),
+    inset 0 0 10px rgba(255,255,255,0.55);
+}
+
+.family-cinema-origin::after{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:white;
+  transform:translate(-50%,-50%);
+  box-shadow:0 0 12px rgba(255,255,255,0.95);
+}
+
+.family-cinema-chip{
+  position:absolute;
+  left:0;
+  top:0;
+  width:var(--chip-width, 180px);
+  height:var(--chip-height, auto);
+  min-height:38px;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:7px 10px;
+  border-radius:18px;
+  box-sizing:border-box;
+  color:#f8fafc;
+  background:
+    linear-gradient(90deg, rgba(250,204,21,0.22), transparent 22%),
+    rgba(5,10,22,0.88);
+  border:1px solid rgba(250,204,21,0.72);
+  box-shadow:
+    0 9px 22px rgba(0,0,0,0.34),
+    0 0 16px rgba(250,204,21,0.42),
+    inset 0 0 16px rgba(56,189,248,0.08);
+  backdrop-filter:blur(4px);
+  text-transform:uppercase;
+  transform:translate(var(--chip-x), var(--chip-y));
+  opacity:1;
+}
+
+.family-cinema-serial{
+  flex:0 0 auto;
+  color:#7dd3fc;
+  font-size:11px;
+  line-height:1;
+  font-weight:900;
+  text-shadow:
+    0 0 8px rgba(0,0,0,1),
+    0 0 12px rgba(56,189,248,0.9);
+}
+
+.family-cinema-name{
+  min-width:0;
+  flex:1 1 auto;
+  color:white;
+  font-size:12px;
+  line-height:1.12;
+  font-weight:900;
+  white-space:normal;
+  overflow:visible;
+  overflow-wrap:anywhere;
+  text-overflow:clip;
+  text-shadow:
+    0 0 8px rgba(0,0,0,1),
+    0 0 14px rgba(236,72,153,0.82);
+}
+
+.family-cinema-family{
+  flex:0 0 auto;
+  padding:2px 6px;
+  border-radius:999px;
+  background:#facc15;
+  color:#111827;
+  font-size:10px;
+  line-height:1;
+  font-weight:900;
+  text-shadow:none;
+}
+
+.family-static-label{
+  pointer-events:auto;
+}
+
+.family-static-hud{
+  position:relative;
+  width:1px;
+  height:1px;
+  overflow:visible;
+  font-family:Arial, sans-serif;
+  pointer-events:auto;
+}
+
+.family-static-card{
+  position:absolute;
+  left:0;
+  top:0;
+  width:min(290px, 82vw);
+  transform:translate(-50%, calc(-100% - 24px));
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:8px;
+  align-items:center;
+  padding:9px 10px;
+  border-radius:18px;
+  background:
+    linear-gradient(90deg, rgba(14,165,233,0.18), transparent 36%),
+    rgba(5,10,22,0.9);
+  border:1px solid rgba(250,204,21,0.72);
+  box-shadow:
+    0 10px 26px rgba(0,0,0,0.35),
+    0 0 18px rgba(250,204,21,0.35);
+  backdrop-filter:blur(4px);
+  color:#f8fafc;
+  box-sizing:border-box;
+  text-transform:uppercase;
+}
+
+.family-static-card::after{
+  content:"";
+  position:absolute;
+  left:50%;
+  bottom:-10px;
+  width:16px;
+  height:16px;
+  background:rgba(5,10,22,0.9);
+  border-right:1px solid rgba(250,204,21,0.72);
+  border-bottom:1px solid rgba(250,204,21,0.72);
+  transform:translateX(-50%) rotate(45deg);
+}
+
+.family-static-member{
+  min-width:0;
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  position:relative;
+  z-index:1;
+}
+
+.family-static-serial{
+  flex:0 0 auto;
+  color:#7dd3fc;
+  font-size:12px;
+  line-height:1.2;
+  font-weight:900;
+  text-shadow:
+    0 0 8px rgba(0,0,0,1),
+    0 0 12px rgba(56,189,248,0.95);
+}
+
+.family-static-name{
+  min-width:0;
+  color:#ffffff;
+  font-size:13px;
+  line-height:1.16;
+  font-weight:900;
+  overflow-wrap:anywhere;
+  text-shadow:
+    0 0 8px rgba(0,0,0,1),
+    0 0 14px rgba(236,72,153,0.72);
+}
+
+.family-static-actions{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  position:relative;
+  z-index:1;
+}
+
+.family-static-action{
+  min-height:34px;
+  margin:0;
+  padding:8px 10px;
+  border-radius:999px;
+  background:#22c55e;
+  color:white;
+  font-size:12px;
+  font-weight:800;
+  box-shadow:0 8px 18px rgba(34,197,94,0.28);
+  white-space:nowrap;
+}
+
+.family-static-action.is-visited{
+  background:#2563eb;
+  box-shadow:0 8px 18px rgba(37,99,235,0.28);
+}
+
+.family-static-close{
+  min-height:30px;
+  width:30px;
+  margin:0;
+  padding:0;
+  border-radius:999px;
+  background:rgba(255,255,255,0.1);
+  color:#f8fafc;
+  box-shadow:none;
+  font-size:16px;
+  line-height:1;
+}
+
+.family-all-card{
+
+  width:min(220px, 62vw);
+
+  display:flex;
+  flex-direction:column;
+
+  gap:6px;
+
+  padding:6px;
+}
+
+.family-all-list{
+
+  display:flex;
+  flex-direction:column;
+
+  gap:7px;
+
+  max-height:120px;
+
+  overflow:auto;
+
+  padding-right:2px;
+}
+
+.family-all-member-row{
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:space-between;
+
+  gap:10px;
+
+  padding:3px 6px;
+
+  border-radius:14px;
+
+  background:rgba(255,255,255,0.05);
+
+  border:1px solid rgba(255,255,255,0.06);
+}
+
+.family-all-left{
+
+  display:flex;
+
+  align-items:center;
+
+  gap:8px;
+
+  min-width:0;
+}
+
+.family-all-serial{
+
+  color:#7dd3fc;
+
+  font-size:10px;
+
+  font-weight:900;
+
+  white-space:nowrap;
+}
+
+.family-all-name{
+
+  color:white;
+
+  font-size:10px;
+
+  font-weight:800;
+
+  overflow-wrap:anywhere;
+
+  text-transform:uppercase;
+}
+
+.family-all-age{
+
+  color:#facc15;
+
+  font-size:11px;
+
+  font-weight:800;
+
+  white-space:nowrap;
+}
+
+.cluster-float-card{
+
+  background:transparent;
+
+  border:none;
+
+  box-shadow:none;
+
+  backdrop-filter:none;
+
+  padding:0;
+
+  min-width:auto;
+  max-width:none;
+
+  color:white;
+
+  font-size:11px;
+
+  font-weight:700;
+
+  text-transform:uppercase;
+
+  letter-spacing:0.6px;
+
+  text-shadow:
+    0 0 8px rgba(0,0,0,0.95),
+    0 0 14px rgba(236,72,153,0.8),
+    0 0 22px rgba(59,130,246,0.5);
+
+  animation:
+    clusterNameFloat 4s ease-in-out infinite;
+}
+
+.cinema-label{
+
+  color:white;
+
+  font-size:12px;
+  font-weight:900;
+
+  text-transform:uppercase;
+
+  letter-spacing:0.8px;
+
+  white-space:nowrap;
+
+  pointer-events:none;
+
+  contain:layout style paint;
+
+  text-shadow:
+    0 0 8px rgba(0,0,0,1),
+    0 0 14px rgba(59,130,246,1),
+    0 0 24px rgba(236,72,153,0.8);
+
+  animation:
+    cinemaReveal 1.4s ease forwards;
+
+  will-change:
+    transform,
+    opacity;
+}
+
+@keyframes cinemaReveal{
+
+  0%{
+
+    opacity:0;
+
+    transform:
+      scale(0.3)
+      translateY(20px);
+
+    filter:blur(6px);
+  }
+
+  35%{
+
+    opacity:1;
+
+    transform:
+      scale(1.12)
+      translateY(0px);
+
+    filter:blur(0px);
+  }
+
+  70%{
+
+    opacity:1;
+    transform:scale(1);
+  }
+
+  100%{
+
+    opacity:0;
+
+    transform:
+      scale(0.92)
+      translateY(-10px);
+
+  }
+}
+
+.cluster-main-count{
+
+  font-size:18px;
+  font-weight:900;
+  line-height:1;
+
+  text-shadow:
+    0 0 10px rgba(255,255,255,0.9),
+    0 0 18px rgba(236,72,153,0.9);
+}
+
+.cluster-sub-count{
+
+  margin-top:2px;
+
+  font-size:10px;
+
+  font-weight:700;
+
+  opacity:0.95;
+
+  text-shadow:
+    0 0 8px rgba(255,255,255,0.8);
+}
+
+@keyframes floatHud{
+
+  0%{
+    transform:translateY(0px);
+  }
+
+  50%{
+    transform:translateY(-4px);
+  }
+
+  100%{
+    transform:translateY(0px);
+  }
+}
+
+@keyframes clusterNameFloat{
+
+  0%{
+    transform:
+      translateY(0px)
+      scale(0.96);
+
+    opacity:0.55;
+  }
+
+  50%{
+    transform:
+      translateY(-6px)
+      scale(1);
+
+    opacity:1;
+  }
+
+  100%{
+    transform:
+      translateY(0px)
+      scale(0.96);
+
+    opacity:0.55;
+  }
+
+}
+
+@keyframes fadeFloat{
+
+  from{
+    opacity:0;
+
+    transform:
+      translateY(10px)
+      scale(0.9);
+  }
+
+  to{
+    opacity:1;
+
+    transform:
+      translateY(0px)
+      scale(1);
+  }
+
+}
+
+@keyframes clusterOpen{
+
+  from{
+
+    opacity:0;
+
+    transform:
+      translate(-50%,-48%)
+      scale(0.92);
+  }
+
+  to{
+
+    opacity:1;
+
+    transform:
+      translate(-50%,-50%)
+      scale(1);
+  }
+
+}
+
+@keyframes navGlow{
+
+  0%{
+    box-shadow:
+      0 0 15px rgba(34,197,94,0.25),
+      0 18px 40px rgba(0,0,0,0.28);
+  }
+
+  50%{
+    box-shadow:
+      0 0 32px rgba(34,197,94,0.55),
+      0 18px 40px rgba(0,0,0,0.35);
+  }
+
+  100%{
+    box-shadow:
+      0 0 15px rgba(34,197,94,0.25),
+      0 18px 40px rgba(0,0,0,0.28);
+  }
+
+}
+
+@keyframes tacticalReveal{
+
+  0%{
+
+    opacity:0;
+
+    transform:
+      scale(0.4)
+      translateY(20px);
+
+  }
+
+  100%{
+
+    opacity:1;
+
+    transform:
+      scale(1)
+      translateY(0px);
+
+  }
+}
+
+
+
+@keyframes cardReveal{
+
+  0%{
+
+    opacity:0;
+
+    transform:
+      scale(0.4)
+      translateX(-20px);
+
+    filter:blur(5px);
+  }
+
+  55%{
+
+    opacity:1;
+
+    transform:
+      scale(1.08)
+      translateX(0px);
+
+    filter:blur(0px);
+  }
+
+  100%{
+
+    opacity:1;
+
+    transform:scale(1);
+  }
+}
+
+@keyframes cinemaFamilyReveal{
+
+  0%{
+
+    opacity:0;
+
+    transform:
+      translate(-50%,-50%)
+      scale(0.45);
+
+    filter:blur(5px);
+  }
+
+  6%{
+
+    opacity:1;
+
+    transform:
+      translate(-50%,-54%)
+      scale(1.06);
+
+    filter:blur(0px);
+  }
+
+  18%{
+
+    opacity:1;
+
+    transform:
+      translate(-50%,-60%)
+      scale(1);
+  }
+
+  72%{
+
+    opacity:1;
+
+    filter:blur(0px);
+
+    transform:
+      translate(-50%,-78%)
+      scale(1);
+  }
+
+  100%{
+
+    opacity:1;
+
+    filter:blur(0px);
+
+    transform:
+      translate(-50%,-78%)
+      scale(1);
+  }
+}
+
+/* MOBILE BOTTOM SHEET */
+
+#panelHandle{
+  width:60px;
+  height:6px;
+  background:#d1d5db;
+  border-radius:999px;
+  margin:6px auto 10px auto;
+}
+
+#panelContent{
+  height:calc(100% - 20px);
+  overflow:auto;
+}
+
+/* MOBILE PANEL SYSTEM */
+@media(max-width:768px){
+
+  #panel{
+
+    visibility:hidden;
+    pointer-events:none;
+    opacity:0;
+    position:fixed;
+    left:12px;
+    right:12px;
+    bottom:12px;
+
+    width:auto;
+    max-width:calc(100% - 24px);
+
+    height:0;
+    padding:0;
+
+    background:rgba(10,14,28,0.95);
+    border:1px solid rgba(255,255,255,0.12);
+    backdrop-filter:blur(18px);
+
+    border-radius:24px;
+
+    z-index:9999;
+
+    overflow:hidden;
+
+    transition:height 0.25s ease, opacity 0.25s ease, transform 0.25s ease;
+
+    box-shadow:0 18px 40px rgba(0,0,0,0.30);
+  }
+
+  #panel.expanded{
+    height:42vh;
+    visibility:visible;
+    pointer-events:auto;
+    opacity:1;
+  }
+
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="clusterPopup"></div>
+
+<div id="map"></div>
+
+<div id="searchBox">
+  <input id="search" list="searchHints" placeholder="Search name / serial / EPIC" onkeyup="debouncedSearch()" autocomplete="off">
+  
+  <datalist id="searchHints"></datalist>
+  <button onclick="clearSearch()" title="Clear search">⟲</button>
+</div>
+
+<div id="mobileFab" onclick="toggleMobileMenu()">☰</div>
+<div id="mobileMenu">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <strong>Menu</strong>
+    <button onclick="toggleMobileMenu()" style="border:none;background:none;font-size:18px;cursor:pointer;padding:0;line-height:1;">✖</button>
+  </div>
+  <button onclick="loadNearest(); toggleMobileMenu();">📍 Nearest 10</button>
+  <button onclick="startSmartRoute(); toggleMobileMenu();">🚀 Start Route</button>
+  <button onclick="clearRoute(); toggleMobileMenu();">❌ Clear</button>
+  <button onclick="showVisited(); toggleMobileMenu();">✅ Visited</button>
+  <button onclick="toggleFloatingLabels(); toggleMobileMenu();">
+  ✨ Toggle Labels
+  </button>
+  <button id="navStartBtn"
+   onclick="startNavigationMode(); toggleMobileMenu();">
+   🧭 Start Navigation
+  </button>
+  <button id="navStopBtn"
+   style="display:none;background:#dc2626;color:white;"
+   onclick="toggleNavigationMode(); toggleMobileMenu();">
+   🛑 Exit Navigation
+  </button>
+
+
+
+</div>
+
+<div id="smartPanel">
+  <button onclick="loadNearest()">📍 Nearest 10</button>
+  <button onclick="startSmartRoute()">🚀 Start Route</button>
+  <button onclick="clearRoute()">❌ Clear</button>
+  <button onclick="showVisited()">✅ Visited</button>
+</div>
+
+<div id="dashboardPanel">
+  <div class="dashboardTitle">Dashboard</div>
+  <div class="dashboardRow">
+    <span class="dashboardLabel">Family / Elector</span>
+    <span class="dashboardValue" id="dashFamilyElectors">0 / 0</span>
+  </div>
+  <div class="dashboardRow">
+    <span class="dashboardLabel">Total Elector</span>
+    <span class="dashboardValue" id="dashTotalElectors">0</span>
+  </div>
+  <div class="dashboardRow">
+    <span class="dashboardLabel">Visited</span>
+    <span class="dashboardValue dashboardValueVisited" id="dashVisitedElectors">0</span>
+  </div>
+  <div class="dashboardRow">
+    <span class="dashboardLabel">Remain</span>
+    <span class="dashboardValue dashboardValueRemain" id="dashRemainElectors">0</span>
+  </div>
+  <div class="dashboardProgress">
+    <div class="dashboardProgressFill" id="dashProgress"></div>
+  </div>
+</div>
+
+<div id="navStatus" class="nav-off">
+  <div class="navMini">
+    <button id="navMiniBtn" onclick="toggleNavigationMode()" aria-label="Toggle navigation">
+      <span>🧭</span>
+    </button>
+  </div>
+  <div class="navExpanded">
+    <div class="navStatusTitle">Navigation</div>
+    <div class="navStatusLine">
+      <span>Status</span>
+      <strong id="navStatusText">OFF</strong>
+    </div>
+    <div class="navStatusLine">
+      <span>Nearest</span>
+      <strong id="navNearestCount">0</strong>
+    </div>
+    <div class="navStatusActions">
+      <button id="navToggleBtn" onclick="toggleNavigationMode()">Start Navigation</button>
+      
+    </div>
+  </div>
+</div>
+
+<div id="panel">
+
+  <div id="panelHandle" onclick="togglePanel()"></div>
+
+  <div id="panelContent">
+    Select a family...
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+
+<script>
+
+// DEBOUNCE UTILITY
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// DEBOUNCED SEARCH
+const debouncedSearch = debounce(searchFamily, 300);
+
+// MAP
+const map = L.map('map',{
+  maxZoom: 19,   // 🔥 CRITICAL FIX
+  preferCanvas:true,
+  zoomControl:true
+
+}).setView([22.9564,88.7711],15);
+
+let clusterGroup = L.markerClusterGroup({
+  disableClusteringAtZoom: 18,
+  maxClusterRadius: 50,
+  zoomToBoundsOnClick: false,
+  spiderfyOnMaxZoom: false,
+  iconCreateFunction: getClusterIcon
+});
+
+map.addLayer(clusterGroup);
+
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom:19
+}).addTo(map);
+
+document.querySelector(".leaflet-tile-pane")
+  .style.filter =
+  "contrast(1.05) saturate(1.08)";
+
+const boundary = [
+  [22.9564407,88.7711926],
+  [22.9661521,88.7753996],
+  [22.9600786,88.7642899],
+  [22.9578530,88.7612745],
+  [22.9549903,88.7650023]
+];
+
+L.polygon(boundary,{
+  color:'red',
+  fillOpacity:0.1
+}).addTo(map);
+
+map.on("click", function(){
+
+  if(ignoreMapClick){
+    return;
+  }
+
+  closeCluster();
+
+  collapseExplodedFamilies();
+
+  closePanel();
+  closeStaticFamilyLabel();
+
+  clearClusterCinema();
+
+  
+
+  // auto close mobile menu
+  document.getElementById("mobileMenu")
+    .classList.remove("open");
+
+
+  map.closePopup();
+    
+
+});
+
+
+// STORAGE
+let searchMode = false;
+let dataLoaded = false;
+let markers=[];
+let familiesMap={};
+let visited = {};
+try{
+  visited = JSON.parse(localStorage.getItem("visited")||"{}");
+}catch(err){
+  console.log("⚠️ Local visited data was invalid, resetting", err);
+  localStorage.removeItem("visited");
+}
+let selectedFamily = null;
+
+window.__DEV_PC_TEST__ = true;
+let currentLat = null;
+let currentLon = null;
+let routeLine = null;
+let nearestList = [];
+let routeIndex = 0;
+let nearestLabels = [];
+let panelMode = "default"; // default | visited | nearest
+let routeActive = false;
+let locationWatchId = null;
+let clusterClickTimer = null;
+let ignoreMapClick = false;
+let spiderfiedFamilies = {};
+let navigationMode = false;
+let nearestDynamicFamilies = [];
+let floatingLabelsEnabled = true;
+let floatingLabels = [];
+let familyCinemaLabelItems = [];
+let familyLabelIntervals = [];
+let explodedMarkers = [];
+let staticFamilyLabel = null;
+let staticFamilyMembers = [];
+let staticFamilyIndex = 0;
+let staticFamilyInterval = null;
+let staticFamilyId = null;
+
+let cinematicClusterLabels = [];
+let clusterCinemaIntervals = {};
+
+let currentClusterPopupFamilies = null;
+const NEARBY_RADIUS_KM = 0.2;
+const SAME_LOCATION_LABEL_RADIUS_KM = 0.005;
+
+// Optional remote sync endpoints. Leave blank for local CSV-only mode.
+const CSV_URL = "";
+const SHEET_API = "";
+
+function escapeHTML(value){
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    '"':"&quot;",
+    "'":"&#39;"
+  }[ch]));
+}
+
+function jsCall(name, ...args){
+  let safeArgs = args.map(arg =>
+    typeof arg === "number" ? String(arg) : JSON.stringify(String(arg != null ? arg : ""))
+  );
+
+  return escapeHTML(`${name}(${safeArgs.join(",")})`);
+}
+
+function detailId(family, index){
+  return "d_" + encodeURIComponent(String(family ?? "")).replace(/%/g, "_") + "_" + index;
+}
+
+function cleanCSVValue(value){
+  return String(value != null ? value : "").replace(/^\uFEFF/, "").trim();
+}
+
+function displayText(value){
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function parseCSVRow(row){
+  let cells = [];
+  let value = "";
+  let inQuotes = false;
+
+  for(let i = 0; i < row.length; i++){
+    let ch = row[i];
+
+    if(ch === '"'){
+      if(inQuotes && row[i + 1] === '"'){
+        value += '"';
+        i++;
+      }else{
+        inQuotes = !inQuotes;
+      }
+    }else if(ch === "," && !inQuotes){
+      cells.push(cleanCSVValue(value));
+      value = "";
+    }else{
+      value += ch;
+    }
+  }
+
+  cells.push(cleanCSVValue(value));
+  return cells;
+}
+
+function parseCSV(data){
+  let rows = [];
+  let row = [];
+  let value = "";
+  let inQuotes = false;
+  let text = String(data ?? "").replace(/^\uFEFF/, "");
+
+  function pushRow(){
+    row.push(cleanCSVValue(value));
+    value = "";
+
+    if(row.some(cell => cell !== "")){
+      rows.push(row);
+    }
+
+    row = [];
+  }
+
+  for(let i = 0; i < text.length; i++){
+    let ch = text[i];
+
+    if(ch === '"'){
+      if(inQuotes && text[i + 1] === '"'){
+        value += '"';
+        i++;
+      }else{
+        inQuotes = !inQuotes;
+      }
+    }else if(ch === "," && !inQuotes){
+      row.push(cleanCSVValue(value));
+      value = "";
+    }else if((ch === "\n" || ch === "\r") && !inQuotes){
+      if(ch === "\r" && text[i + 1] === "\n"){
+        i++;
+      }
+
+      pushRow();
+    }else{
+      value += ch;
+    }
+  }
+
+  if(value !== "" || row.length > 0){
+    pushRow();
+  }
+
+  return rows;
+}
+
+function parseCoordinate(value){
+  let text = cleanCSVValue(value);
+  if(text === "") return NaN;
+
+  let number = Number(text);
+  return Number.isFinite(number) ? number : NaN;
+}
+
+function hasValidCoordinates(person){
+  return Number.isFinite(person.lat) && Number.isFinite(person.lon);
+}
+
+function ageSortValue(age){
+  return Number.isFinite(age) ? age : -1;
+}
+
+function pickFamilyHead(members){
+  let males = members.filter(m=>m.gender === "male");
+  let pool = males.length ? males : members;
+
+  return [...pool].sort((a,b)=>ageSortValue(b.age) - ageSortValue(a.age))[0];
+}
+
+function hasCurrentLocation(){
+  return Number.isFinite(currentLat) && Number.isFinite(currentLon);
+}
+
+function getClusterIcon(cluster){
+
+  let childMarkers = cluster.getAllChildMarkers();
+  let totalFamilies = childMarkers.length;
+  let totalElectors = childMarkers.reduce((sum,marker)=>{
+    return sum + (Number(marker.electorCount) || 0);
+  }, 0);
+  let visitedCount = childMarkers.filter(marker => visited[marker.family]).length;
+  let status = "unvisited";
+
+  if(totalFamilies > 0 && visitedCount === totalFamilies){
+    status = "visited";
+  }else if(visitedCount > 0){
+    status = "mixed";
+  }
+
+  let circleHighlight = false;
+  if(navigationMode && hasCurrentLocation()){
+    circleHighlight = childMarkers.some(marker => {
+      if(visited[marker.family]) return false;
+      let head = marker.head || (markers.find(m=>m.family === marker.family) || {}).head;
+      if(!head || !Number.isFinite(head.lat) || !Number.isFinite(head.lon)) return false;
+      let d = getDistance(currentLat, currentLon, head.lat, head.lon);
+      return d <= NEARBY_RADIUS_KM;
+    });
+  }
+
+  return L.divIcon({
+    html:`<div class="smart-cluster smart-cluster-${status} ${circleHighlight ? 'smart-cluster-circle' : ''}"><span class="cluster-main-count">
+  ${totalFamilies}
+</span>
+
+<div class="cluster-sub-count">
+  👨 ${totalElectors}
+</div>
+</div>`,
+    className:"smart-cluster-wrap",
+    iconSize:L.point(70,42)
+  });
+}
+
+function refreshClusterColors(){
+  if(clusterGroup && typeof clusterGroup.refreshClusters === "function"){
+    clusterGroup.refreshClusters();
+  }
+}
+
+function clearFloatingLabels(){
+
+  familyLabelIntervals.forEach(i=>clearInterval(i));
+  familyLabelIntervals = [];
+
+  floatingLabels.forEach(l=>{
+
+    map.removeLayer(l);
+
+  });
+
+  floatingLabels = [];
+  familyCinemaLabelItems = [];
+}
+
+function closeStaticFamilyLabel(){
+  if(staticFamilyInterval){
+    clearInterval(staticFamilyInterval);
+    staticFamilyInterval = null;
+  }
+
+  if(staticFamilyLabel){
+    map.removeLayer(staticFamilyLabel);
+    staticFamilyLabel = null;
+  }
+
+  staticFamilyMembers = [];
+  staticFamilyIndex = 0;
+  staticFamilyId = null;
+}
+
+
+function updateStaticFamilyAction(){
+  if(!staticFamilyLabel || !staticFamilyId) return;
+
+  let element =
+    staticFamilyLabel.getElement &&
+    staticFamilyLabel.getElement();
+
+  if(!element) return;
+
+  let action = element.querySelector(".family-static-action");
+  if(!action) return;
+
+  let isVisited = !!visited[staticFamilyId];
+  action.textContent = isVisited ? "Unvisit" : "Visit";
+  action.classList.toggle("is-visited", isVisited);
+}
+
+
+function buildStaticFamilyLabel(family, members){
+
+  let isVisited = !!visited[family];
+
+  let membersHtml = members.map(m => `
+
+    <div class="family-all-member-row">
+
+      <div class="family-all-left">
+
+        <span class="family-all-serial">
+          S-${escapeHTML(m.serial || "-")}
+        </span>
+
+        <span class="family-all-name">
+          ${escapeHTML(m.name || "-")}
+        </span>
+
+      </div>
+
+      <div class="family-all-age">
+        ${escapeHTML(m.age || "-")}
+      </div>
+
+    </div>
+
+  `).join("");
+
+  return `
+
+    <div class="family-static-hud">
+
+      <div class="family-static-card family-all-card">
+
+        <div class="family-all-list">
+
+          ${membersHtml}
+
+        </div>
+
+        <div class="family-static-actions">
+
+          <button
+            class="family-static-action ${isVisited ? 'is-visited' : ''}"
+            onclick="event.stopPropagation();event.preventDefault();toggleStaticFamilyVisit();"
+          >
+            ${isVisited ? 'Unvisit' : 'Visit'}
+          </button>
+
+          <button
+            class="family-static-close"
+            onclick="event.stopPropagation();event.preventDefault();closeStaticFamilyLabel();"
+          >
+            ×
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+}
+
+function showStaticFamilyLabel(family, head, members){
+  closeStaticFamilyLabel();
+  map.closePopup();
+  closePanel();
+  closeCluster();
+  hideHoverLabel();
+
+  if(window.currentLabel){
+    map.removeLayer(window.currentLabel);
+    window.currentLabel = null;
+  }
+
+  staticFamilyId = String(family);
+  staticFamilyMembers = getVisibleFamilyMembers({
+    family,
+    head,
+    members
+  });
+
+  if(staticFamilyMembers.length === 0){
+    staticFamilyMembers = [head];
+  }
+
+  staticFamilyIndex = 0;
+
+  staticFamilyLabel = L.marker(
+    [head.lat, head.lon],
+    {
+      interactive:true,
+      zIndexOffset:900,
+      icon:L.divIcon({
+        className:"family-static-label",
+        html:buildStaticFamilyLabel(
+  staticFamilyId,
+  staticFamilyMembers
+),
+        iconSize:[1,1],
+        iconAnchor:[0,0]
+      })
+    }
+  ).addTo(map);
+
+  
+}
+
+function toggleStaticFamilyVisit(){
+  if(!staticFamilyId) return;
+
+  let family = staticFamilyId;
+
+  if(visited[family]){
+    delete visited[family];
+    localStorage.setItem("visited", JSON.stringify(visited));
+    syncVisitedToSheet(family, "UNVISIT");
+  }else{
+    visited[family] = true;
+    localStorage.setItem("visited", JSON.stringify(visited));
+    syncVisitedToSheet(family, "VISITED");
+  }
+
+  if(selectedFamily === family){
+    selectedFamily = null;
+  }
+
+  updateColors();
+  refreshClusterPopup();
+  refreshClusterColors();
+  updateStaticFamilyAction();
+}
+
+function clearClusterCinema(){
+
+  cinematicClusterLabels.forEach(label=>{
+
+    map.removeLayer(label);
+
+  });
+
+  cinematicClusterLabels = [];
+
+  clusterGroup.eachLayer(layer=>{
+
+  if(layer.cinemaTempLabel){
+
+    map.removeLayer(
+      layer.cinemaTempLabel
+    );
+
+    layer.cinemaTempLabel = null;
+  }
+
+});
+
+  Object.values(clusterCinemaIntervals)
+  .forEach(interval=>{
+
+    clearInterval(interval);
+
+  });
+
+  clusterCinemaIntervals = {};
+}
+
+function updateDashboard(){
+
+  let familyEntries = Object.entries(familiesMap);
+  let totalFamilies = familyEntries.length;
+  let totalElectors = familyEntries.reduce((sum,entry)=>sum + entry[1].length, 0);
+  let visitedElectors = familyEntries.reduce((sum,entry)=>{
+    let family = entry[0];
+    let members = entry[1];
+    return sum + (visited[family] ? members.length : 0);
+  }, 0);
+  let remainElectors = Math.max(totalElectors - visitedElectors, 0);
+  let percent = totalElectors > 0 ? (visitedElectors / totalElectors) * 100 : 0;
+
+  document.getElementById("dashFamilyElectors").textContent = `${totalFamilies} / ${totalElectors}`;
+  document.getElementById("dashTotalElectors").textContent = totalElectors;
+  document.getElementById("dashVisitedElectors").textContent = visitedElectors;
+  document.getElementById("dashRemainElectors").textContent = remainElectors;
+  document.getElementById("dashProgress").style.width = percent.toFixed(1) + "%";
+}
+
+function serialSortValue(serial){
+  let n = parseInt(String(serial ?? "").replace(/[^\d]/g, ""), 10);
+  return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
+}
+
+function sortFamiliesBySerial(list){
+  return [...list].sort((a,b)=>{
+    let serialA = serialSortValue(a.head.serial);
+    let serialB = serialSortValue(b.head.serial);
+
+    if(serialA !== serialB) return serialA - serialB;
+    return String(a.head.name).localeCompare(String(b.head.name));
+  });
+}
+
+function sortMembersBySerial(list){
+  return [...list].sort((a,b)=>{
+    let serialA = serialSortValue(a.serial);
+    let serialB = serialSortValue(b.serial);
+
+    if(serialA !== serialB) return serialA - serialB;
+    return displayText(a.name).localeCompare(displayText(b.name));
+  });
+}
+
+function getClusterFamilies(cluster){
+  let childMarkers = cluster.getAllChildMarkers();
+  let seen = {};
+  let clusterFamilies = [];
+
+  childMarkers.forEach(marker=>{
+    if(seen[marker.family]) return;
+
+    let obj = markers.find(m=>m.family == marker.family);
+    if(!obj) return;
+
+    seen[marker.family] = true;
+    clusterFamilies.push(obj);
+  });
+
+  return sortFamiliesBySerial(clusterFamilies);
+}
+
+function showClusterFamilyPopup(clusterFamilies){
+
+  closeStaticFamilyLabel();
+
+  closeCluster();
+
+  clearFloatingLabels();
+
+  if(!clusterFamilies || clusterFamilies.length === 0){
+    return;
+  }
+
+  currentClusterPopupFamilies = clusterFamilies;
+
+  let popup =
+    document.getElementById("clusterPopup");
+
+  let html = `
+
+    <div
+      style="
+        width:min(220px,62vw);
+        display:flex;
+        flex-direction:column;
+        gap:8px;
+      "
+    >
+
+      <div
+        style="
+          font-size:14px;
+          font-weight:900;
+          color:white;
+          text-transform:uppercase;
+          letter-spacing:1px;
+        "
+      >
+        Families Here
+      </div>
+
+      <div
+        style="
+          display:flex;
+          flex-direction:column;
+          gap:8px;
+          max-height:220px;
+          overflow:auto;
+        "
+      >
+
+  `;
+
+  clusterFamilies.forEach(obj=>{
+
+    let isVisited =
+      !!visited[obj.family];
+
+    html += `
+
+      <div
+        onclick="
+          previewFamily(
+            '${obj.family}',
+            familiesMap['${obj.family}'][0],
+            familiesMap['${obj.family}']
+          )
+        "
+
+        style="
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:10px;
+
+          padding:8px 10px;
+
+          border-radius:14px;
+
+          background:rgba(255,255,255,0.05);
+
+          border:1px solid rgba(255,255,255,0.08);
+
+          cursor:pointer;
+        "
+      >
+
+        <div
+          style="
+            min-width:0;
+            flex:1;
+          "
+        >
+
+          <div
+            style="
+              color:#7dd3fc;
+              font-size:10px;
+              font-weight:900;
+            "
+          >
+            F-${obj.family}
+          </div>
+
+          <div
+            style="
+              color:white;
+              font-size:12px;
+              font-weight:900;
+              text-transform:uppercase;
+              overflow:hidden;
+              text-overflow:ellipsis;
+              white-space:nowrap;
+            "
+          >
+            ${obj.head.name}
+          </div>
+
+        </div>
+
+        <button
+          onclick="
+            event.stopPropagation();
+
+            ${isVisited
+              ? `unvisit('${obj.family}')`
+              : `markVisited('${obj.family}')`
+            }
+          "
+
+          style="
+            min-height:28px;
+            padding:6px 10px;
+            border-radius:999px;
+            border:none;
+
+            background:
+              ${isVisited ? '#2563eb' : '#22c55e'};
+
+            color:white;
+
+            font-size:11px;
+            font-weight:800;
+          "
+        >
+          ${isVisited ? 'Unvisit' : 'Visit'}
+        </button>
+
+      </div>
+
+    `;
+
+  });
+
+  html += `
+
+      </div>
+
+      <button
+        onclick="closeCluster()"
+
+        style="
+          margin-top:6px;
+          background:#111827;
+          color:white;
+          border:none;
+          border-radius:999px;
+          padding:8px;
+          font-size:12px;
+          font-weight:800;
+        "
+      >
+        Close
+      </button>
+
+    </div>
+
+  `;
+
+  popup.innerHTML = html;
+
+  popup.style.display = "block";
+
+}
+
+function showMarkerClusterFamilies(cluster){
+  showClusterFamilyPopup(getClusterFamilies(cluster));
+}
+
+function expandMarkerCluster(cluster){
+  closeCluster();
+
+  if(cluster && typeof cluster.spiderfy === "function"){
+    cluster.spiderfy();
+    updateColors();
+    return;
+  }
+
+  if(cluster && typeof cluster.zoomToBounds === "function"){
+    cluster.zoomToBounds();
+  }
+}
+
+function registerClusterEvents(){
+  clusterGroup.on("clusterclick", function(e){
+    if(e.originalEvent){
+      L.DomEvent.stop(e.originalEvent);
+    }
+
+    if(clusterClickTimer){
+      clearTimeout(clusterClickTimer);
+    }
+
+    clusterClickTimer = setTimeout(()=>{
+      clusterClickTimer = null;
+      showMarkerClusterFamilies(e.layer);
+    }, 230);
+  });
+
+  clusterGroup.on("clusterdblclick", function(e){
+    if(e.originalEvent){
+      L.DomEvent.stop(e.originalEvent);
+    }
+
+    if(clusterClickTimer){
+      clearTimeout(clusterClickTimer);
+      clusterClickTimer = null;
+    }
+
+    expandMarkerCluster(e.layer);
+  });
+
+  clusterGroup.on("spiderfied", function(e){
+    spiderfiedFamilies = {};
+    e.markers.forEach(marker=>{
+      spiderfiedFamilies[marker.family] = true;
+    });
+  });
+
+  clusterGroup.on("unspiderfied", function(){
+    spiderfiedFamilies = {};
+  });
+}
+
+
+function loadData(){
+
+  console.log("🔄 Loading LOCAL CSV...");
+
+  fetch("data.csv")
+  .then(r=>{
+    console.log("CSV Fetch Response Status:", r.status, r.statusText);
+    if(!r.ok){
+      console.error("CSV fetch failed:", r.status, r.statusText);
+      alert("❌ data.csv not found (HTTP " + r.status + ")");
+      throw "CSV missing";
+    }
+    return r.text();
+  })
+  .then(data=>{
+
+    console.log("✅ LOCAL CSV LOADED");
+    console.log("CSV LENGTH:", data.length);
+
+    if(data.length === 0){
+      alert("❌ CSV file is empty");
+      return;
+    }
+
+    // 🔥 CLEAR OLD DATA (IMPORTANT FOR RELOAD)
+    familiesMap = {};
+    markers = [];
+    clusterGroup.clearLayers();
+
+    processCSV(data);
+
+    // 🔄 BACKGROUND ONLINE SYNC (OPTIONAL - ONLY IF CONFIGURED)
+    if(typeof CSV_URL !== 'undefined' && CSV_URL){
+      fetch(CSV_URL)
+      .then(r=>r.text())
+      .then(newData=>{
+        console.log("🔄 ONLINE SYNC SUCCESS");
+        // (optional: update later)
+      })
+      .catch(()=>{
+        console.log("⚠️ Online sync failed (offline mode)");
+      });
+    }
+
+    if(typeof SHEET_API !== 'undefined' && SHEET_API){
+      loadVisitedFromSheet();
+    }
+
+  })
+  .catch(err=>{
+    console.error("CSV load error:", err);
+    alert("❌ CSV LOAD FAILED: " + String(err));
+  });
+
+}
+
+
+function processCSV(data){
+
+  let rows = parseCSV(data);
+
+  if(rows.length === 0){
+    alert("❌ CSV is empty");
+    return;
+  }
+
+  let headers = rows[0];
+  console.log("HEADERS:", headers);
+
+  let col = n => headers.findIndex(h => h.trim().toLowerCase() === n.toLowerCase());
+  let requiredColumns = [
+    "FAMILY SL_NO",
+    "Elector Name",
+    "Gender",
+    "AGE",
+    "Epic No",
+    "SERIAL(NEW)",
+    "PH",
+    "Latitude",
+    "Longitude"
+  ];
+  let missingColumns = requiredColumns.filter(n => col(n) === -1);
+
+  if(missingColumns.length > 0){
+    console.error("Missing CSV columns:", missingColumns);
+    alert("❌ CSV missing columns: " + missingColumns.join(", "));
+    return;
+  }
+
+  rows.slice(1).forEach(c=>{
+
+    let age = parseInt(cleanCSVValue(c[col("AGE")]), 10);
+
+    let obj={
+      family:cleanCSVValue(c[col("FAMILY SL_NO")]),
+      name:cleanCSVValue(c[col("Elector Name")]),
+      gender:cleanCSVValue(c[col("Gender")]).toLowerCase(),
+      age:Number.isFinite(age) ? age : NaN,
+      epic:cleanCSVValue(c[col("Epic No")]),
+      serial:cleanCSVValue(c[col("SERIAL(NEW)")]),
+      phone:cleanCSVValue(c[col("PH")]),
+      lat:parseCoordinate(c[col("Latitude")]),
+      lon:parseCoordinate(c[col("Longitude")])
+    };
+
+    if(!obj.family){
+      return;
+    }
+
+    if(!familiesMap[obj.family]) familiesMap[obj.family]=[];
+    familiesMap[obj.family].push(obj);
+
+  });
+
+  // 🔥 ADD MARKERS
+  let mappedElectors = 0;
+  let unmappedFamilies = 0;
+
+  for(let f in familiesMap){
+
+    let members = familiesMap[f];
+    let mappableMembers = members.filter(hasValidCoordinates);
+
+    mappedElectors += mappableMembers.length;
+
+    if(mappableMembers.length === 0){
+      unmappedFamilies++;
+      continue;
+    }
+
+    let head = pickFamilyHead(mappableMembers);
+
+    addMarker(f,head,members);
+  }
+
+  console.log("CSV total electors:", Object.values(familiesMap).reduce((sum,members)=>sum + members.length, 0));
+  console.log("CSV total families:", Object.keys(familiesMap).length);
+  console.log("Mapped electors with coordinates:", mappedElectors);
+  console.log("Mapped families with coordinates:", markers.length);
+  console.log("Families without coordinates:", unmappedFamilies);
+
+  dataLoaded = true;
+  updateDashboard();
+  populateSearchHints();
+  trackLocation();
+}
+
+function populateSearchHints(){
+  let hintSet = new Set();
+
+  Object.values(familiesMap).forEach(members=>{
+    members.forEach(member=>{
+      if(member.name) hintSet.add(member.name);
+      if(member.serial) hintSet.add(member.serial);
+      if(member.epic) hintSet.add(member.epic);
+      if(member.family) hintSet.add(member.family);
+    });
+  });
+
+  let datalist = document.getElementById("searchHints");
+  if(!datalist) return;
+  datalist.innerHTML = "";
+
+  [...hintSet]
+.sort()
+.slice(0,500)
+.forEach(value => {
+    let option = document.createElement("option");
+    option.value = value;
+    datalist.appendChild(option);
+  });
+}
+
+function clearSearch(){
+  let searchInput = document.getElementById("search");
+  if(searchInput){
+    searchInput.value = "";
+    searchInput.focus();
+  }
+  selectedFamily = null;
+  panelMode = "default";
+  map.closePopup();
+  closeCluster();
+  closeStaticFamilyLabel();
+  collapseExplodedFamilies();
+  nearestList = [];
+  routeActive = false;
+  routeIndex = 0;
+  nearestLabels.forEach(l=>map.removeLayer(l));
+  nearestLabels = [];
+  if(routeLine){
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+  updateColors();
+  refreshClusterColors();
+  if(window.currentLabel){
+    map.removeLayer(window.currentLabel);
+    window.currentLabel = null;
+  }
+
+  closePanel();
+  document.getElementById("panelContent").innerHTML = "Select a family...";
+}
+
+
+function addMarker(family, head, members){
+
+  let color = visited[family] ? "#16a34a" : "#2563eb";
+
+  let marker = L.marker([head.lat, head.lon],{
+    icon: getMarkerIcon(color)
+  });
+
+  marker.family = family;
+  marker.electorCount = members.length;
+  marker.head = head;
+  marker.members = members;
+
+  let clickTimer = null;
+
+  // CLICK / TOUCH
+  function handleMarkerTap(e){
+
+    if(e && e.originalEvent){
+      L.DomEvent.stopPropagation(e.originalEvent);
+      L.DomEvent.preventDefault(e.originalEvent);
+    }
+    if(e){
+      L.DomEvent.stop(e);
+    }
+
+    if(clickTimer){
+      clearTimeout(clickTimer);
+      clickTimer = null;
+    }
+
+    ignoreMapClick = true;
+    setTimeout(()=>{ ignoreMapClick = false; }, 600);
+
+    clickTimer = setTimeout(()=>{
+      clickTimer = null;
+
+      if(spiderfiedFamilies[family]){
+
+  showStaticFamilyLabel(
+    family,
+    head,
+    members
+  );
+
+  return;
+}
+
+      let handled = handleSameLocation(
+        head.lat,
+        head.lon
+      );
+
+      if(!handled){
+        explodeNearbyFamilies(
+          head.lat,
+          head.lon
+        );
+
+        previewFamily(
+          family,
+          head,
+          members
+        );
+      }
+    }, 250);
+  }
+
+  marker.on("click", handleMarkerTap);
+  marker.on("mousedown", handleMarkerTap);
+  marker.on("touchstart", handleMarkerTap);
+  marker.on("touchend", handleMarkerTap);
+  marker.on("pointerdown", handleMarkerTap);
+  marker.on("pointerup", handleMarkerTap);
+
+  // DOUBLE CLICK
+  marker.on("dblclick",()=>{
+
+    if(clickTimer){
+      clearTimeout(clickTimer);
+      clickTimer = null;
+    }
+
+    markVisited(family);
+
+  });
+
+  // ADD TO CLUSTER
+  clusterGroup.addLayer(marker);
+
+  // SAVE MARKER
+  markers.push({
+    family,
+    marker,
+    head,
+    members,
+    lastColor: color
+  });
+
+}
+
+
+// SHOW FAMILY PANEL
+function showFamily(family,head,members){
+
+  let html = `
+  <button onclick="goBack()">⬅ Back</button>
+  <h3>${escapeHTML(head.name)}</h3>
+  Family: ${escapeHTML(family)}
+  <hr>
+`;
+
+  let isVisited = visited[family];
+
+members.forEach((m,i)=>{
+
+  let color = isVisited ? "#16a34a" : "#000"; // green or black
+
+  html+=`
+    <div class="member" 
+         onclick="${jsCall("showDetails", family, i)}"
+         style="
+         border-left:4px solid ${color};
+         padding-left:10px;">
+      ${escapeHTML(m.name)} (${escapeHTML(m.age)})
+    </div>
+    <div id="${escapeHTML(detailId(family, i))}"></div>
+  `;
+  });
+
+  html+=`
+    <button class="visit" onclick="${jsCall("markVisited", family)}">✔ Visited</button>
+    <button class="unvisit" onclick="${jsCall("unvisit", family)}">❌ Unvisit</button>
+  `;
+
+  document.getElementById("panelContent").innerHTML=html;
+  openPanel();
+}
+
+function showFamilyPopup(family, head, members){
+
+  document.getElementById("mobileMenu")
+  .classList.remove("open");
+
+  if(window.currentLabel){
+    map.removeLayer(window.currentLabel);
+    window.currentLabel = null;
+  }
+  hideHoverLabel();
+
+  let isVisited = !!visited[family];
+  let label = isVisited ? "Unvisit" : "Mark Visited";
+  let action = isVisited ? "unvisit" : "markVisited";
+  let electorLabel = members.length === 1 ? "elector" : "electors";
+  let headSerial = head.serial ? ` • Serial ${escapeHTML(head.serial)}` : "";
+
+  let previewMembers = members.slice(0,8);
+  let membersHtml = previewMembers.map(m => `
+    <div class="familyMemberRow">
+      <span class="familyMemberName">${escapeHTML(m.name)}</span>
+      <span class="familyMemberSerial">${escapeHTML(m.serial || '-')}</span>
+    </div>
+  `).join("");
+
+  let moreLabel = members.length > 3 ? `<div class="popup-tagline">+${members.length - 3} more members. Tap card to expand.</div>` : `<div class="popup-tagline">Tap card to view all members.</div>`;
+
+  let statusLabel = isVisited ? 'VISITED' : 'UNVISITED';
+  let statusStyle = isVisited ? 'success' : 'primary';
+
+  let detailAction = `event.stopPropagation();event.preventDefault();${jsCall('showFamilyPopupDetails', family)}`;
+
+  let html = `
+    <div class="popup-summary" onclick="${jsCall('showFamilyPopupDetails', family)}">
+      <div class="popup-header">
+        <div>
+          <div class="popup-header-title">${escapeHTML(head.name)}</div>
+          <div class="popup-subtitle">Family ${escapeHTML(family)}${headSerial} • ${members.length} ${electorLabel}</div>
+        </div>
+        <div class="popup-status">
+          <span class="popup-badge ${statusStyle}">${statusLabel}</span>
+        </div>
+      </div>
+      <div class="familyDetailList">
+        ${membersHtml}
+      </div>
+      ${moreLabel}
+      <div class="popup-expand-label">Tap card or click View details →</div>
+      <div class="familyPopupActions">
+        <button class="familyPopupButton" onclick="${detailAction}" style="background:#2563eb;color:white;">📋 View details</button>
+        <button class="familyPopupButton ${isVisited ? 'unvisit' : 'visit'}" onclick="event.stopPropagation();event.preventDefault();${jsCall(action, family)}">${isVisited ? '✔ Unvisit' : '✔ Mark Visited'}</button>
+        <button class="familyPopupButton" style="background:#111827;color:#fff;" onclick="event.stopPropagation();event.preventDefault();map.closePopup();">✕ Close</button>
+      </div>
+    </div>
+  `;
+
+  let popupMaxWidth = window.innerWidth > 768 ? 320 : Math.min(320, window.innerWidth - 30);
+  let popupOffset = window.innerWidth > 768 ? L.point(30,-10) : L.point(0, -10);
+
+  L.popup({
+    maxWidth:popupMaxWidth,
+    autoPanPadding:[20,20],
+    className:"custom-family-popup",
+    offset:popupOffset
+  })
+  .setLatLng([head.lat, head.lon])
+  .setContent(html)
+  .openOn(map);
+}
+
+function showFamilyPopupSummary(family){
+  let obj = markers.find(m=>m.family == family);
+  if(!obj) return;
+  showFamilyPopup(obj.family, obj.head, obj.members);
+}
+
+function showFamilyPopupDetails(family){
+  let obj = markers.find(m=>m.family == family);
+  if(!obj) return;
+  let head = obj.head;
+  let members = obj.members;
+
+  document.getElementById("mobileMenu")
+  .classList.remove("open");
+
+  if(window.currentLabel){
+    map.removeLayer(window.currentLabel);
+    window.currentLabel = null;
+  }
+  hideHoverLabel();
+
+  let isVisited = !!visited[family];
+  let label = isVisited ? "Unvisit" : "Mark Visited";
+  let action = isVisited ? "unvisit" : "markVisited";
+  let electorLabel = members.length === 1 ? "elector" : "electors";
+  let headSerial = head.serial ? ` • Serial ${escapeHTML(head.serial)}` : "";
+
+  let membersHtml = members.map(m => `
+    <div class="familyDetailItemExpanded">
+      <span class="familyMemberName">${escapeHTML(m.name)}</span>
+      <span class="familyMemberSerial">${escapeHTML(m.serial || '-')}</span>
+    </div>
+  `).join("");
+
+  let statusLabel = isVisited ? 'VISITED' : 'UNVISITED';
+  let statusStyle = isVisited ? 'success' : 'primary';
+
+  let html = `
+    <div style="width:min(360px,85vw);max-height:420px;overflow:auto;">
+      <button class="popup-back-button" onclick="event.stopPropagation();event.preventDefault();showFamilyPopupSummary('${escapeHTML(family)}')">← Back</button>
+      <div class="popup-expanded-title">${escapeHTML(head.name)}</div>
+      <div class="popup-subtitle">Family ${escapeHTML(family)}${headSerial} • ${members.length} ${electorLabel}</div>
+      <div class="popup-status" style="margin-top:10px;">
+        <span class="popup-badge ${statusStyle}">${statusLabel}</span>
+      </div>
+      <div class="familyDetailListExpanded">
+        ${membersHtml}
+      </div>
+      <div class="familyPopupActions">
+        <button class="familyPopupButton ${isVisited ? 'unvisit' : 'visit'}" onclick="event.stopPropagation();event.preventDefault();${jsCall(action, family)}">${label}</button>
+        <button class="familyPopupButton" style="background:#111827;color:#fff;" onclick="event.stopPropagation();event.preventDefault();map.closePopup();">Close</button>
+      </div>
+    </div>
+  `;
+
+  let popupMaxWidth = window.innerWidth > 768 ? 360 : Math.min(360, window.innerWidth - 30);
+  let popupOffset = window.innerWidth > 768 ? L.point(30,-10) : L.point(0, -10);
+
+  L.popup({
+    maxWidth:popupMaxWidth,
+    autoPanPadding:[20,20],
+    className:"custom-family-popup",
+    offset:popupOffset
+  })
+  .setLatLng([head.lat, head.lon])
+  .setContent(html)
+  .openOn(map);
+}
+
+
+function isMobileMode(){
+  return window.matchMedia("(max-width:900px)").matches || ('ontouchstart' in window);
+}
+
+function toggleFloatingLabels(){
+
+  floatingLabelsEnabled =
+    !floatingLabelsEnabled;
+
+  if(!floatingLabelsEnabled){
+
+    familyLabelIntervals.forEach(i=>clearInterval(i));
+    familyLabelIntervals = [];
+
+    clearFloatingLabels();
+
+  }else{
+
+    renderFloatingLabels();
+
+  }
+
+}
+
+function toggleMobileMenu(){
+  let menu = document.getElementById("mobileMenu");
+  if(!menu) return;
+  closePanel();
+  menu.classList.toggle("open");
+}
+
+function showFamilyDetailsPopup(family){
+  let members = familiesMap[family] || [];
+  if(members.length === 0) return;
+
+  let rows = members.map(m=>`
+    <div style="padding:8px 0;border-bottom:1px solid #eee;">
+      <div style="font-weight:600;color:#111;">${escapeHTML(m.name)}</div>
+      <div style="font-size:13px;color:#555;">Serial: ${escapeHTML(m.serial || '-')}${m.age ? ` • Age ${escapeHTML(String(m.age))}` : ''}</div>
+    </div>
+  `).join("");
+
+  let html = `
+    <div style="min-width:260px;max-height:340px;overflow:auto;font-size:14px;line-height:1.4;">
+      <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+        <strong>Family ${escapeHTML(family)}</strong>
+        <button onclick="map.closePopup();" style="border:none;background:none;font-size:18px;cursor:pointer;line-height:1;">✖</button>
+      </div>
+      ${rows}
+    </div>
+  `;
+
+  let anchor =
+  members.find(hasValidCoordinates) || members[0];
+
+  L.popup({
+    maxWidth:300,
+    autoPanPadding:[10,10]
+  })
+  
+  .setLatLng([anchor.lat, anchor.lon])
+  
+  .setContent(html)
+  .openOn(map);
+}
+
+// MEMBER DETAILS
+function showDetails(family,i){
+
+  let familyMembers = familiesMap[family];
+  if(!familyMembers || !familyMembers[i]) return;
+
+  let m = familyMembers[i];
+
+  let html = `
+    <div class="detail">
+      <b>${escapeHTML(m.name)}</b><br>
+      Age: ${escapeHTML(m.age)}<br>
+      Gender: ${escapeHTML(m.gender)}<br>
+      EPIC: ${escapeHTML(m.epic)}<br>
+      Serial: ${escapeHTML(m.serial)}<br>
+      Phone: <a href="tel:${escapeHTML(String(m.phone).replace(/[^\d+]/g, ""))}">${escapeHTML(m.phone)}</a>
+    </div>
+  `;
+
+  let detail = document.getElementById(detailId(family, i));
+  if(detail){
+    detail.innerHTML = html;
+  }
+}
+
+// VISIT
+function markVisited(family){
+
+  visited[family]=true;
+  localStorage.setItem("visited",JSON.stringify(visited));
+
+  if(map && map.closePopup){
+    map.closePopup();
+  }
+
+  syncVisitedToSheet(family, "VISITED");
+
+  updateColors();
+  updateStaticFamilyAction();
+  refreshClusterPopup();
+  closeCluster();
+
+  if(navigationMode){
+    updateDynamicNearestFamilies();
+    showNavigationPanel();
+    return;
+  }
+
+  // ✅ Only auto-move when the smart route is actively running
+  let currentRoute = routeActive ? nearestList[routeIndex] : null;
+  if(currentRoute && currentRoute.family == family){
+    routeIndex++;
+
+    if(routeIndex < nearestList.length){
+      goToNext();
+      return;
+    }
+
+    routeActive = false;
+    if(routeLine){
+      map.removeLayer(routeLine);
+      routeLine = null;
+    }
+    alert("All done!");
+  }
+
+  let obj = markers.find(m=>m.family==family);
+  if(obj){
+    showFamily(obj.family, obj.head, obj.members);
+  }
+
+  
+}
+
+// UNVISIT
+function unvisit(family){
+
+  delete visited[family];
+  localStorage.setItem("visited",JSON.stringify(visited));
+
+  if(map && map.closePopup){
+    map.closePopup();
+  }
+
+  syncVisitedToSheet(family, "UNVISIT");
+
+  updateColors();
+  updateStaticFamilyAction();
+  refreshClusterPopup();
+  closeCluster();
+
+  if(navigationMode){
+    updateDynamicNearestFamilies();
+    showNavigationPanel();
+    return;
+  }
+
+  // 🔥 STAY IN SAME PANEL MODE
+  if(panelMode === "visited"){
+    showVisited();
+    return;
+  }
+
+  if(panelMode === "nearest"){
+    showNearestPanel();
+    return;
+  }
+
+  // default behavior
+  let obj = markers.find(m=>m.family==family);
+  if(obj){
+    showFamily(obj.family, obj.head, obj.members);
+  }
+}
+
+// SEARCH
+function searchFamily(){
+
+  if(!dataLoaded) return;
+
+  let q = document.getElementById("search").value.toLowerCase().trim();
+
+  // EMPTY SEARCH
+  if(q === ""){
+
+  selectedFamily = null;
+  panelMode = "default";
+  
+  map.closePopup();
+  closeCluster();
+  collapseExplodedFamilies();
+
+  // 🔥 CLEAR NEAREST SYSTEM
+  nearestList = [];
+  routeActive = false;
+  routeIndex = 0;
+
+  nearestLabels.forEach(l=>map.removeLayer(l));
+  nearestLabels = [];
+
+  // 🔥 CLEAR ROUTE
+  if(routeLine){
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+
+  // 🔥 RESET MARKERS PROPERLY
+  updateColors();
+  refreshClusterColors();
+
+  // 🔥 REMOVE LABEL
+  if(window.currentLabel){
+    map.removeLayer(window.currentLabel);
+    window.currentLabel = null;
+  }
+
+  document.getElementById("panelContent").innerHTML = "Select a family...";
+
+  return;
+}
+
+
+  let exactMatch = markers.find(m=>{
+    if(String(m.family).toLowerCase() === q) return true;
+    return m.members.some(p=>
+      (String(p.serial||"").toLowerCase() === q) ||
+      (String(p.epic||"").toLowerCase() === q) ||
+      (String(p.name||"").toLowerCase() === q)
+    );
+  });
+
+  if(exactMatch){
+    selectFromSearch(exactMatch.family);
+    return;
+  }
+
+  searchMode = true;
+  selectedFamily = null;
+
+  let resultHTML = "<h3>Search Results</h3>";
+
+  markers.forEach(m=>{
+
+    let matchedMembers = m.members.filter(p=>
+      (p.name||"").toLowerCase().includes(q) ||
+      (p.epic||"").toLowerCase().includes(q) ||
+      (p.serial||"").toLowerCase().includes(q)
+    );
+
+    if(matchedMembers.length > 0){
+
+      if(m.lastColor !== "#9333ea"){
+       m.marker.setIcon(getMarkerIcon("#9333ea"));
+       m.lastColor = "#9333ea";
+      }
+
+      
+
+      matchedMembers.forEach(p=>{
+        resultHTML += `
+          <div class="member" onclick="${jsCall("selectFromSearch", m.family)}">
+            ${escapeHTML(p.name)}
+            <span style="font-size:12px;color:#666;">
+            (S:${escapeHTML(p.serial)})
+            </span> - ${escapeHTML(p.epic)}
+          </div>
+        `;
+      });
+
+    }else{
+
+      let color = "#2563eb";
+
+    if(visited[m.family]){
+      color = "#16a34a";
+    }
+
+    else if(
+    navigationMode &&
+    hasCurrentLocation()
+   ){
+
+  let d = getDistance(
+    currentLat,
+    currentLon,
+    m.head.lat,
+    m.head.lon
+  );
+
+  if(d <= NEARBY_RADIUS_KM){
+    color = "#ec4899";
+  }
+
+}
+
+  if(m.lastColor !== color){
+
+    m.marker.setIcon(
+      getMarkerIcon(color)
+    );
+
+    m.lastColor = color;
+  }
+
+}
+
+  });
+
+  // ✅ CORRECT PLACE
+  if(resultHTML === "<h3>Search Results</h3>"){
+    resultHTML += "No match found";
+  }
+
+  document.getElementById("panelContent").innerHTML = resultHTML;
+  openPanel();
+}
+
+
+
+function selectFamily(family,head,members){
+  showStaticFamilyLabel(family, head, members);
+}
+
+function previewFamily(
+  family,
+  head,
+  members
+){
+
+  closeCluster();
+
+  collapseExplodedFamilies();
+
+  closePanel();
+
+  closeStaticFamilyLabel();
+
+  showStaticFamilyLabel(
+    family,
+    head,
+    members
+  );
+
+}
+
+function showFamilySelection(family,head,members,moveMap){
+
+  closeCluster();
+
+  panelMode = "default";
+  selectedFamily = family;
+  searchMode = false;
+
+  // reset all markers
+  markers.forEach(m=>{
+
+    let color =
+      visited[m.family]
+      ? "#16a34a"
+      : "#2563eb";
+
+    if(m.family == family){
+      color = "#9333ea";
+    }
+
+    if(m.lastColor !== color){
+
+      m.marker.setIcon(
+        getMarkerIcon(color)
+      );
+
+      m.lastColor = color;
+    }
+
+  });
+
+  if(moveMap){
+
+    map.flyTo(
+      [head.lat, head.lon],
+      18
+    );
+
+  }
+
+  // 🔥 SHOW BOTTOM PANEL
+  closePanel();
+
+  updateColors();
+
+  // 🔥 SHOW POPUP ON MAP
+  showStaticFamilyLabel(
+    family,
+    head,
+    members
+  );
+
+}
+
+function selectFromSearch(family){
+
+  let obj = markers.find(x=>x.family == family);
+
+  if(!obj) return;
+
+  // 🔥 clear old UI first
+  map.closePopup();
+
+  closeCluster();
+
+  collapseExplodedFamilies();
+
+  // 🔥 clear route
+  if(routeLine){
+
+    map.removeLayer(routeLine);
+
+    routeLine = null;
+  }
+
+  // 🔥 smooth zoom
+  map.flyTo(
+    [obj.head.lat, obj.head.lon],
+    18
+  );
+
+  // 🔥 open selected family
+  showFamilySelection(
+    obj.family,
+    obj.head,
+    obj.members,
+    false
+  );
+
+}
+
+function showLabel(lat, lon, text, family, electorCount){
+
+  if(window.currentLabel){
+    map.removeLayer(window.currentLabel);
+  }
+
+  hideHoverLabel();
+
+  let electorLabel = Number(electorCount) === 1 ? "ELECTOR" : "ELECTORS";
+
+  window.currentLabel = L.marker([lat, lon],{
+    icon: L.divIcon({
+      className: "selected-family-label",
+      iconSize: L.point(240,120),
+      iconAnchor: L.point(28,88),
+      html: `
+        <div class="selected-hud">
+          <div class="selected-hud-target">
+            <span class="selected-hud-dot"></span>
+          </div>
+          <div class="selected-hud-link"></div>
+          <div class="selected-hud-card">
+            <div class="selected-hud-name">${escapeHTML(text)}</div>
+            <div class="selected-hud-meta">
+              <span>FAMILY ${escapeHTML(family)}</span>
+              <span>${escapeHTML(electorCount)} ${electorLabel}</span>
+            </div>
+          </div>
+        </div>
+      `
+    })
+  }).addTo(map);
+}
+
+function showHoverLabel(lat, lon, text, family, electorCount){
+
+  if(window.hoverLabel){
+    map.removeLayer(window.hoverLabel);
+  }
+
+  let electorLabel = Number(electorCount) === 1 ? "ELECTOR" : "ELECTORS";
+
+  window.hoverLabel = L.marker([lat, lon],{
+    icon: L.divIcon({
+      className: "selected-family-label",
+      iconSize: L.point(240,120),
+      iconAnchor: L.point(28,88),
+      html: `
+        <div class="selected-hud">
+          <div class="selected-hud-target">
+            <span class="selected-hud-dot"></span>
+          </div>
+          <div class="selected-hud-link"></div>
+          <div class="selected-hud-card">
+            <div class="selected-hud-name">${escapeHTML(text)}</div>
+            <div class="selected-hud-meta">
+              <span>FAMILY ${escapeHTML(family)}</span>
+              <span>${escapeHTML(electorCount)} ${electorLabel}</span>
+            </div>
+          </div>
+        </div>
+      `
+    })
+  }).addTo(map);
+}
+
+function hideHoverLabel(){
+  if(window.hoverLabel){
+    map.removeLayer(window.hoverLabel);
+    window.hoverLabel = null;
+  }
+}
+
+function explodeNearbyFamilies(centerLat, centerLon){
+   
+  collapseExplodedFamilies();
+
+  // clear old exploded markers
+  explodedMarkers.forEach(m=>map.removeLayer(m));
+  explodedMarkers = [];
+
+  // nearby families
+  let nearby = markers.filter(m=>{
+
+    let d = getDistance(
+      centerLat,
+      centerLon,
+      m.head.lat,
+      m.head.lon
+    );
+
+    return d < 0.08; // nearby radius
+  });
+
+  // no need if only 1
+  if(nearby.length <= 1) return;
+
+  let angleStep = (Math.PI * 2) / nearby.length;
+  let radius = 0.00035;
+
+  nearby.forEach((m,i)=>{
+
+    let angle = i * angleStep;
+
+    let newLat =
+      centerLat + Math.cos(angle) * radius;
+
+    let newLon =
+      centerLon + Math.sin(angle) * radius;
+
+    let line = L.polyline([
+      [centerLat, centerLon],
+      [newLat, newLon]
+    ],{
+      color:"#60a5fa",
+      weight:2,
+      opacity:0.7
+    }).addTo(map);
+
+    let mini = L.circleMarker(
+      [newLat,newLon],
+      {
+        radius:10,
+        interactive:true,
+        color:"#fff",
+        weight:2,
+        fillColor:
+          visited[m.family]
+          ? "#16a34a"
+          : "#2563eb",
+        fillOpacity:1
+      }
+    )
+    .addTo(map);
+
+    function miniTap(e){
+      if(e && e.originalEvent){
+        L.DomEvent.stopPropagation(e.originalEvent);
+        L.DomEvent.preventDefault(e.originalEvent);
+      }
+
+      collapseExplodedFamilies();
+
+      selectedFamily = m.family;
+
+      updateColors();
+      
+      function miniTap(e){
+
+      if(e && e.originalEvent){
+      L.DomEvent.stopPropagation(e.originalEvent);
+      L.DomEvent.preventDefault(e.originalEvent);
+      }
+
+     collapseExplodedFamilies();
+
+     selectedFamily = m.family;
+
+     updateColors();
+
+     showStaticFamilyLabel(
+     m.family,
+     m.head,
+     m.members
+  );
+
+}
+    }
+
+    mini.on("click", miniTap);
+    mini.on("mousedown", miniTap);
+    mini.on("touchstart", miniTap);
+    mini.on("touchend", miniTap);
+    mini.on("pointerdown", miniTap);
+    mini.on("pointerup", miniTap);
+
+    explodedMarkers.push(line);
+    explodedMarkers.push(mini);
+
+  });
+
+}
+
+function collapseExplodedFamilies(){
+
+  explodedMarkers.forEach(m=>{
+    map.removeLayer(m);
+  });
+
+  explodedMarkers = [];
+
+}
+
+function showNearestLabels(){
+
+  nearestLabels.forEach(l=>map.removeLayer(l));
+  nearestLabels = [];
+
+  nearestList.forEach((m,i)=>{
+
+    let label = L.marker([m.head.lat, m.head.lon],{
+      icon: L.divIcon({
+        className: 'label',
+        html: `<div style="
+          background:#f59e0b;
+          color:#000;
+          width:22px;
+          height:22px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          border-radius:50%;
+          font-size:12px;
+          font-weight:bold;
+          box-shadow:0 2px 6px rgba(0,0,0,0.4);
+        ">
+        ${i+1}
+        </div>`
+      })
+    }).addTo(map);
+
+    nearestLabels.push(label);
+
+  });
+
+}
+
+function updateColors(){
+
+  markers.forEach(m=>{
+
+    let color = "#2563eb";
+
+    // visited
+    if(visited[m.family]){
+      color = "#16a34a";
+    }
+
+    // selected family
+    if(selectedFamily === m.family){
+      color = "#9333ea";
+    }
+
+    // LIVE nearby highlight
+    if(
+      navigationMode &&
+      currentLat &&
+      currentLon &&
+      !visited[m.family]
+    ){
+
+      let d = getDistance(
+        currentLat,
+        currentLon,
+        m.head.lat,
+        m.head.lon
+      );
+
+      // inside green circle
+      if(d <= NEARBY_RADIUS_KM){
+
+        color = "#ec4899";
+
+      }
+
+    }
+
+    // apply only if changed
+    if(m.lastColor !== color){
+
+      m.marker.setIcon(
+        getMarkerIcon(color)
+      );
+
+      m.lastColor = color;
+
+    }
+
+  });
+
+  clusterGroup.refreshClusters();
+
+markers.forEach(m=>{
+
+  if(m.marker && m.marker.refreshIconOptions){
+
+    m.marker.refreshIconOptions(
+      {
+        icon: getMarkerIcon(m.lastColor)
+      },
+      true
+    );
+
+  }
+
+});
+
+updateDashboard();
+
+}
+
+function renderGPSMarker(lat, lon, accuracy){
+  if(!window.meMarker){
+    window.meMarker = L.marker(
+      [lat, lon],
+      {
+        interactive:false,
+        icon:L.divIcon({
+          className:"",
+          html:`
+            <div class="live-user-marker">
+              <div class="live-user-pulse"></div>
+              <div class="live-user-ring"></div>
+              <div class="live-user-dot"></div>
+            </div>
+          `,
+          iconSize:[64,64],
+          iconAnchor:[32,32]
+        })
+      }
+    ).addTo(map);
+  } else {
+    window.meMarker.setLatLng([lat, lon]);
+  }
+
+  if(!window.gpsCircle){
+    window.gpsCircle = L.circle(
+      [lat, lon],
+      {
+        radius: Math.min(accuracy || 20, 50),
+        color:"#3b82f6",
+        fillColor:"#60a5fa",
+        fillOpacity:0.18,
+        weight:2,
+        interactive:false
+      }
+    ).addTo(map);
+  } else {
+    window.gpsCircle.setLatLng([lat, lon]);
+    window.gpsCircle.setRadius(Math.min(accuracy || 20, 50));
+  }
+
+  if(navigationMode){
+    if(!window.nearestRadiusCircle){
+      window.nearestRadiusCircle = L.circle(
+        [lat, lon],
+        {
+          radius:200,
+          color:"#16a34a",
+          fillColor:"rgba(34,197,94,0.12)",
+          fillOpacity:0.16,
+          weight:3,
+          dashArray:"6 8",
+          interactive:false,
+          className:"nearest-radius-circle"
+        }
+      ).addTo(map);
+    } else {
+      window.nearestRadiusCircle.setLatLng([lat, lon]);
+      window.nearestRadiusCircle.setRadius(200);
+    }
+  } else if(window.nearestRadiusCircle){
+    map.removeLayer(window.nearestRadiusCircle);
+    window.nearestRadiusCircle = null;
+  }
+}
+
+function trackLocation(){
+
+  if(!navigator.geolocation){
+    alert("GPS not supported");
+    return;
+  }
+
+  // clear old watcher
+  if(locationWatchId !== null){
+    navigator.geolocation.clearWatch(locationWatchId);
+    locationWatchId = null;
+  }
+
+  locationWatchId = navigator.geolocation.watchPosition(
+
+    function(pos){
+
+     if(
+  pos.coords.accuracy > 100 &&
+  !window.__DEV_PC_TEST__
+){
+
+  console.log("⚠️ Weak GPS ignored");
+
+  return;
+}
+
+      currentLat = pos.coords.latitude;
+      currentLon = pos.coords.longitude;
+      
+      
+
+      // check impossible GPS jumps
+if(
+  window.lastGpsLat !== undefined &&
+  window.lastGpsLon !== undefined
+){
+
+  let gpsJump = getDistance(
+    window.lastGpsLat,
+    window.lastGpsLon,
+    currentLat,
+    currentLon
+  );
+
+  // ignore impossible jump
+  if(gpsJump > 2){
+
+    console.log("⚠️ GPS jump ignored");
+
+    return;
+  }
+
+}
+
+// save latest valid GPS
+window.lastGpsLat = currentLat;
+window.lastGpsLon = currentLon;
+
+        requestAnimationFrame(()=>{
+
+   updateColors();
+
+   clearTimeout(window.clusterRefreshTimer);
+
+   window.clusterRefreshTimer =
+   setTimeout(()=>{
+
+      clusterGroup.refreshClusters();
+
+   },400);
+
+});
+    
+
+      // update nearest families during navigation
+      if(navigationMode){
+        updateDynamicNearestFamilies();
+      }
+
+      // refresh nearest panel while navigation is on
+      if(
+         navigationMode &&
+         panelMode === "nearest"
+        ){
+
+         clearTimeout(window.navPanelTimer);
+
+         window.navPanelTimer =
+         setTimeout(()=>{
+
+         showNavigationPanel();
+
+        },300);
+
+   }
+
+
+      renderGPSMarker(currentLat, currentLon, pos.coords.accuracy || 20);
+
+    },
+
+    function(err){
+
+      console.log(
+        "⚠️ GPS ERROR:",
+        err.message
+      );
+
+    },
+
+    {
+      enableHighAccuracy:true,
+      maximumAge:0,
+      timeout:30000
+    }
+
+  );
+
+}
+
+function getDistance(lat1, lon1, lat2, lon2){
+
+  let R = 6371;
+  let dLat = (lat2-lat1) * Math.PI/180;
+  let dLon = (lon2-lon1) * Math.PI/180;
+
+  let a =
+    Math.sin(dLat/2)*Math.sin(dLat/2) +
+    Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
+    Math.sin(dLon/2)*Math.sin(dLon/2);
+
+  let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c;
+}
+
+function loadNearest(){
+
+  let list = [];
+  routeActive = false;
+  routeIndex = 0;
+
+  if(routeLine){
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+
+  // 🔥 STEP 0: DEFINE BASE POINT (IMPORTANT)
+  let baseLat, baseLon;
+
+  if(selectedFamily){
+    let obj = markers.find(x=>x.family == selectedFamily);
+    if(obj){
+      baseLat = obj.head.lat;
+      baseLon = obj.head.lon;
+    }else{
+      selectedFamily = null;
+    }
+  }
+
+  if(!selectedFamily){
+    let center = map.getCenter();
+    baseLat = center.lat;
+    baseLon = center.lng;
+  }
+
+  // 🔥 STEP 1: TRY WITH 0.5 KM (more accurate)
+  markers.forEach(m=>{
+    if(visited[m.family]) return;
+
+    let d = getDistance(baseLat, baseLon, m.head.lat, m.head.lon);
+
+    if(d <= 0.5){
+      list.push({...m, dist:d});
+    }
+  });
+
+  // 🔥 STEP 2: IF EMPTY → EXPAND TO 1 KM
+  if(list.length === 0){
+
+    markers.forEach(m=>{
+      if(visited[m.family]) return;
+
+      let d = getDistance(baseLat, baseLon, m.head.lat, m.head.lon);
+
+      if(d <= 1){
+        list.push({...m, dist:d});
+      }
+    });
+
+  }
+
+  // 🔥 STEP 3: STILL EMPTY → TAKE CLOSEST ANYWAY
+  if(list.length === 0){
+
+    markers.forEach(m=>{
+      if(visited[m.family]) return;
+
+      let d = getDistance(baseLat, baseLon, m.head.lat, m.head.lon);
+
+      list.push({...m, dist:d});
+    });
+
+  }
+
+  // ❗ final check
+  if(list.length === 0){
+    alert("No families available");
+    return;
+  }
+
+  list.sort((a,b)=>a.dist-b.dist);
+
+  nearestList = list.slice(0,10);
+
+  highlightCluster();
+  showNearestPanel();
+  showNearestLabels();
+}
+
+function highlightCluster(){
+
+  markers.forEach(m=>{
+
+    let color = "#2563eb";
+
+    if(visited[m.family]) color = "#16a34a";
+    if(selectedFamily === m.family) color = "#9333ea";
+
+    if(m.lastColor !== color){
+  m.marker.setIcon(getMarkerIcon(color));
+  m.lastColor = color;
+      }
+
+  });
+
+  // 🔥 highlight nearest
+  nearestList.forEach(m=>{
+
+  if(m.lastColor !== "#f59e0b"){
+
+    m.marker.setIcon(
+      getMarkerIcon("#f59e0b")
+    );
+
+    m.lastColor = "#f59e0b";
+  }
+
+  });
+
+  refreshClusterColors();
+  updateDashboard();
+
+}
+
+function showNearestPanel(){
+
+  if(navigationMode){
+    showNavigationPanel();
+    return;
+  }
+
+  panelMode = "nearest";
+  let html = "<h3>Nearest Families</h3>";
+
+  nearestList.forEach((m,i)=>{
+    html += `
+      <div class="member" onclick="goToFamily(${i})">
+        ${i+1}. ${escapeHTML(m.head.name)}
+        ${visited[m.family] ? " ✅" : ""} (S:${escapeHTML(m.head.serial)}) 
+        (${(m.dist*1000).toFixed(0)} m)
+      </div>
+    `;
+  });
+
+  document.getElementById("panelContent").innerHTML = html;
+  openPanel();
+}
+
+function goToFamily(index){
+
+  panelMode = "default";
+
+  let m = nearestList[index];
+  if(!m) return;
+
+  selectedFamily = m.family;
+
+  map.flyTo([m.head.lat, m.head.lon], 18);
+
+  showFamilySelection(
+  m.family,
+  m.head,
+  m.members,
+  false
+  );
+
+  drawRoute(m);
+}
+
+function findNearest(){
+  // 🔒 Disabled auto nearest (manual smart system in use)
+  return;
+}
+
+function drawRoute(obj){
+
+  if(routeLine){
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+
+  if(!hasCurrentLocation()){
+    alert("GPS location not ready yet. Please wait a moment and try again.");
+    return;
+  }
+
+  let d = getDistance(currentLat,currentLon,obj.head.lat,obj.head.lon);
+
+  // 🔥 BLOCK FAR ROUTE
+  if(d > 1){
+    alert("Selected family is too far");
+    return;
+  }
+
+  routeLine = L.polyline([
+    [currentLat,currentLon],
+    [obj.head.lat,obj.head.lon]
+  ],{
+    color:"#22c55e",
+    weight:5
+  }).addTo(map);
+}
+
+function handleSameLocation(lat, lon){
+
+  let popup = document.getElementById("clusterPopup");
+
+  // 🔥 TOGGLE: if already open → close and exit
+  if(popup.style.display === "block"){
+    popup.style.display = "none";
+    return true;
+  }
+
+  // 🔥 detect cluster (stable radius)
+  let group = markers.filter(m=>{
+    return getDistance(lat, lon, m.head.lat, m.head.lon) < 0.02;
+  });
+
+  if(group.length <= 1) return false;
+
+  showSameLocationMiniLabels(
+  sortFamiliesBySerial(group)
+);
+
+  return true;
+}
+
+function showSameLocationMiniLabels(group){
+
+  closeStaticFamilyLabel();
+
+  group.forEach((obj,index)=>{
+
+    setTimeout(()=>{
+
+      previewFamily(
+        obj.family,
+        obj.head,
+        obj.members
+      );
+
+    }, index * 1400);
+
+  });
+
+}
+
+function openClusterFamily(family){
+
+  closeCluster();
+
+  let obj = markers.find(x=>x.family == family);
+  if(!obj) return;
+
+  previewFamily(
+    obj.family,
+    obj.head,
+    obj.members
+  );
+
+}
+
+function closeCluster(){
+
+  document.getElementById(
+    "clusterPopup"
+  ).style.display = "none";
+
+  currentClusterPopupFamilies = null;
+
+  if(window.clusterMiniLabels){
+
+    window.clusterMiniLabels.forEach(label=>{
+
+      map.removeLayer(label);
+
+    });
+
+    window.clusterMiniLabels = [];
+
+  }
+
+}
+
+function refreshClusterPopup(){
+  if(currentClusterPopupFamilies && currentClusterPopupFamilies.length){
+    showClusterFamilyPopup(currentClusterPopupFamilies);
+  }
+}
+
+function startNavigationMode(){
+
+  document.getElementById("map").style.filter =
+  "saturate(1.08) contrast(1.02)";
+
+  navigator.geolocation.getCurrentPosition(
+
+    function(pos){
+
+      currentLat = pos.coords.latitude;
+      currentLon = pos.coords.longitude;
+
+      navigationMode = true;
+      renderGPSMarker(currentLat, currentLon, pos.coords.accuracy || 20);
+
+      if(locationWatchId === null){
+        trackLocation();
+      }
+
+      document.getElementById("recenterBtn").style.display = "block";
+      document.getElementById("navStartBtn").style.display = "none";
+      document.getElementById("navStopBtn").style.display = "block";
+
+      map.panTo([currentLat,currentLon], {
+        animate:true,
+        duration:0.9
+      });
+
+      updateDynamicNearestFamilies();
+      updateNavigationStatusUI();
+      closePanel();
+
+      alert("✅ Navigation Started");
+
+    },
+
+    function(err){
+
+      alert("❌ Please enable GPS/location");
+
+      console.log(err);
+
+    },
+
+    {
+      enableHighAccuracy:true,
+      timeout:15000,
+      maximumAge:0
+    }
+
+  );
+
+}
+
+function stopNavigationMode(){
+
+  navigationMode = false;
+  if(locationWatchId !== null){
+    navigator.geolocation.clearWatch(locationWatchId);
+    locationWatchId = null;
+  }
+
+  let recBtn = document.getElementById("recenterBtn");
+
+if(recBtn){
+  recBtn.style.display = "none";
+}
+
+  document.getElementById("navStartBtn").style.display = "block";
+  document.getElementById("navStopBtn").style.display = "none";
+  document.getElementById("map").style.filter = "";
+
+  nearestDynamicFamilies = [];
+  updateNavigationStatusUI();
+
+  if(window.dynamicFamilyCircles){
+
+  window.dynamicFamilyCircles.forEach(c=>{
+    map.removeLayer(c);
+  });
+
+  window.dynamicFamilyCircles = [];
+}
+
+  if(window.nearestRadiusCircle){
+    map.removeLayer(window.nearestRadiusCircle);
+    window.nearestRadiusCircle = null;
+  }
+
+  // remove route line
+  if(routeLine){
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+
+
+
+ // remove nearest labels
+nearestLabels.forEach(l=>{
+  map.removeLayer(l);
+});
+nearestLabels = [];
+
+// clear selected family
+selectedFamily = null;
+
+// remove current HUD label
+if(window.currentLabel){
+  map.removeLayer(window.currentLabel);
+  window.currentLabel = null;
+}
+
+// close popup
+map.closePopup();
+
+// close cluster popup
+closeCluster();
+
+closeStaticFamilyLabel();
+
+// remove exploded nearby markers
+collapseExplodedFamilies();
+
+// refresh colors
+updateColors();
+
+  updateNavigationStatusUI();
+  closePanel();
+
+clearFloatingLabels();
+
+familyLabelIntervals.forEach(i=>{
+  clearInterval(i);
+});
+
+familyLabelIntervals = [];
+
+clearClusterCinema();
+
+  showToast("🛑 Navigation stopped");
+
+}
+
+function toggleNavigationMode(){
+  if(navigationMode){
+    stopNavigationMode();
+    return;
+  }
+
+  startNavigationMode();
+}
+
+function updateNavigationStatusUI(){
+  let statusPanel = document.getElementById("navStatus");
+  let statusText = document.getElementById("navStatusText");
+  let nearestCount = document.getElementById("navNearestCount");
+  let toggleBtn = document.getElementById("navToggleBtn");
+
+  if(!statusPanel || !statusText || !nearestCount || !toggleBtn) return;
+
+  if(navigationMode){
+    statusPanel.classList.remove("nav-off");
+    statusPanel.classList.add("nav-on");
+    statusText.textContent = "ON";
+    nearestCount.textContent = nearestDynamicFamilies.length;
+    toggleBtn.textContent = "Stop Navigation";
+  } else {
+    statusPanel.classList.remove("nav-on");
+    statusPanel.classList.add("nav-off");
+    statusText.textContent = "OFF";
+    nearestCount.textContent = "0";
+    toggleBtn.textContent = "Start Navigation";
+  }
+}
+
+function showNavigationPanel(){
+  panelMode = "default";
+  closePanel();
+
+  if(familyCinemaLabelItems.length === 0){
+    renderFloatingLabels();
+  }
+}
+
+function goToNavFamily(index){
+  let m = nearestDynamicFamilies[index];
+  if(!m) return;
+  selectedFamily = m.family;
+  map.flyTo([m.head.lat, m.head.lon], 18);
+  showFamilySelection(m.family, m.head, m.members, false);
+}
+
+function getNavigationLabelGroups(){
+  let groups = [];
+  let usedFamilies = {};
+
+  nearestDynamicFamilies.slice(0,6).forEach(seed=>{
+    if(!seed || !seed.head || usedFamilies[seed.family]) return;
+
+    let familiesAtPoint = markers.filter(m=>{
+      if(!m || !m.head) return false;
+      if(usedFamilies[m.family]) return false;
+      if(visited[m.family]) return false;
+      if(!Number.isFinite(m.head.lat) || !Number.isFinite(m.head.lon)) return false;
+
+      let d = getDistance(
+        seed.head.lat,
+        seed.head.lon,
+        m.head.lat,
+        m.head.lon
+      );
+
+      return d <= SAME_LOCATION_LABEL_RADIUS_KM;
+    });
+
+    if(familiesAtPoint.length === 0){
+      familiesAtPoint = [seed];
+    }
+
+    familiesAtPoint = sortFamiliesBySerial(familiesAtPoint);
+
+    familiesAtPoint.forEach(f=>{
+      usedFamilies[f.family] = true;
+    });
+
+    let centerLat =
+      familiesAtPoint.reduce((sum,f)=>sum + f.head.lat, 0) /
+      familiesAtPoint.length;
+
+    let centerLon =
+      familiesAtPoint.reduce((sum,f)=>sum + f.head.lon, 0) /
+      familiesAtPoint.length;
+
+    groups.push({
+      lat:centerLat,
+      lon:centerLon,
+      families:familiesAtPoint
+    });
+  });
+
+  return groups;
+}
+
+function getNavigationLabelFamilies(){
+  let families = [];
+
+  getNavigationLabelGroups().forEach(group=>{
+    group.families.forEach(familyObj=>{
+      families.push(familyObj);
+    });
+  });
+
+  return families;
+}
+
+function getVisibleFamilyMembers(familyObj){
+  let members = sortMembersBySerial(familyObj.members || [])
+    .filter(member=>{
+      let name = displayText(member.name);
+      let serial = displayText(member.serial);
+
+      if(!name) return false;
+      if(name === "0" && (!serial || serial === "0")) return false;
+      return true;
+    });
+
+  if(members.length === 0 && familyObj.head && displayText(familyObj.head.name)){
+    members = [familyObj.head];
+  }
+
+  return members;
+}
+
+function rectOverlapArea(a,b){
+  let x = Math.max(0, Math.min(a.right,b.right) - Math.max(a.left,b.left));
+  let y = Math.max(0, Math.min(a.bottom,b.bottom) - Math.max(a.top,b.top));
+
+  return x * y;
+}
+
+function rectOutsidePenalty(rect, size){
+  let topSafe = 118;
+  let bottomSafe = size.y - 118;
+  let penalty = 0;
+
+  if(rect.left < 4) penalty += (4 - rect.left) * 18;
+  if(rect.right > size.x - 4) penalty += (rect.right - size.x + 4) * 18;
+  if(rect.top < topSafe) penalty += (topSafe - rect.top) * 9;
+  if(rect.bottom > bottomSafe) penalty += (rect.bottom - bottomSafe) * 9;
+
+  return penalty;
+}
+
+function padRect(rect, padding){
+  return {
+    left:rect.left - padding,
+    right:rect.right + padding,
+    top:rect.top - padding,
+    bottom:rect.bottom + padding
+  };
+}
+
+function clamp(value, min, max){
+  return Math.max(min, Math.min(max, value));
+}
+
+function getFamilyCinemaMember(familyObj){
+  let members = getVisibleFamilyMembers(familyObj);
+
+  if(members.length === 0){
+    return null;
+  }
+
+  let seed =
+    serialSortValue(familyObj.family) +
+    serialSortValue(familyObj.head && familyObj.head.serial);
+  let index =
+    (Math.floor(Date.now() / 1350) + seed) %
+    members.length;
+
+  return members[index];
+}
+
+function estimateFamilyCinemaLabelSize(familyObj){
+  let members = getVisibleFamilyMembers(familyObj);
+  let mobileLabel = window.innerWidth <= 768;
+  let maxTextLength = members.reduce((longest,member)=>{
+    return Math.max(
+      longest,
+      displayText(member.serial).length +
+      displayText(member.name).length
+    );
+  }, 0);
+  let width = Math.min(
+    mobileLabel ? 270 : 320,
+    Math.max(
+      mobileLabel ? 188 : 210,
+      Math.round((maxTextLength * (mobileLabel ? 6.6 : 7.1)) + 74)
+    )
+  );
+  let nameColumnWidth = Math.max(width - 92, 86);
+  let lineChars = Math.max(10, Math.floor(nameColumnWidth / (mobileLabel ? 7 : 7.3)));
+  let maxNameLines = members.reduce((lines,member)=>{
+    let nameLength = displayText(member.name).length || 1;
+    return Math.max(lines, Math.ceil(nameLength / lineChars));
+  }, 1);
+  return {
+    width,
+    height:Math.max(
+      mobileLabel ? 42 : 40,
+      18 + (maxNameLines * (mobileLabel ? 14 : 15))
+    )
+  };
+}
+
+function chooseFamilyCinemaPlacement(familyObj, usedRects){
+  let size = estimateFamilyCinemaLabelSize(familyObj);
+  let point = map.latLngToContainerPoint([familyObj.head.lat, familyObj.head.lon]);
+  let w = size.width;
+  let h = size.height;
+  let halfW = Math.round(w / 2);
+  let centerY = -Math.round(h / 2);
+  let nearGap = window.innerWidth <= 768 ? 20 : 18;
+  let midGap = window.innerWidth <= 768 ? 38 : 34;
+  let farGap = window.innerWidth <= 768 ? 64 : 58;
+  let candidates = [
+    {x:nearGap, y:centerY},
+    {x:-(w + nearGap), y:centerY},
+    {x:-halfW, y:-(h + nearGap)},
+    {x:-halfW, y:nearGap},
+    {x:nearGap, y:-(h + nearGap)},
+    {x:-(w + nearGap), y:-(h + nearGap)},
+    {x:nearGap, y:nearGap},
+    {x:-(w + nearGap), y:nearGap},
+    {x:midGap, y:centerY - 8},
+    {x:-(w + midGap), y:centerY - 8},
+    {x:-halfW, y:-(h + midGap)},
+    {x:-halfW, y:midGap},
+    {x:midGap, y:-(h + midGap)},
+    {x:-(w + midGap), y:-(h + midGap)},
+    {x:midGap, y:midGap},
+    {x:-(w + midGap), y:midGap},
+    {x:farGap, y:centerY - 14},
+    {x:-(w + farGap), y:centerY - 14},
+    {x:-halfW, y:-(h + farGap)},
+    {x:-halfW, y:farGap},
+    {x:farGap, y:-(h + farGap)},
+    {x:-(w + farGap), y:-(h + farGap)},
+    {x:farGap, y:farGap},
+    {x:-(w + farGap), y:farGap}
+  ];
+  let viewSize = map.getSize();
+  let iconRect = {
+    left:point.x - 34,
+    right:point.x + 34,
+    top:point.y - 34,
+    bottom:point.y + 34
+  };
+  let best = null;
+
+  candidates.forEach(candidate=>{
+    let rect = {
+      left:point.x + candidate.x,
+      top:point.y + candidate.y,
+      right:point.x + candidate.x + w,
+      bottom:point.y + candidate.y + h
+    };
+    let overlap = usedRects.reduce((sum,used)=>{
+      return sum + rectOverlapArea(rect, used);
+    }, 0);
+    let iconOverlap = rectOverlapArea(rect, iconRect);
+    let distance = Math.abs(candidate.x) + Math.abs(candidate.y);
+    let score =
+      (overlap * 12) +
+      (iconOverlap * 40) +
+      rectOutsidePenalty(rect, viewSize) +
+      (distance * 0.28);
+
+    if(!best || score < best.score){
+      best = {
+        ...candidate,
+        width:w,
+        height:h,
+        rect,
+        score
+      };
+    }
+  });
+
+  return best;
+}
+
+function buildFamilyCinemaLabel(familyObj, member, placement){
+  let serial = displayText(member.serial) || "-";
+  let name = displayText(member.name) || "-";
+  let familyNo = displayText(familyObj.family) || "-";
+
+  return `
+    <div class="family-cinema-hud">
+      <div class="family-cinema-origin"></div>
+      <div class="family-cinema-chip" style="--chip-x:${placement.x}px;--chip-y:${placement.y}px;--chip-width:${placement.width}px;--chip-height:${placement.height}px;">
+        <span class="family-cinema-serial">S-${escapeHTML(serial)}</span>
+        <span class="family-cinema-name">${escapeHTML(name)}</span>
+        <span class="family-cinema-family">F-${escapeHTML(familyNo)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function setFamilyCinemaMember(item, member){
+  if(!item || !member || !item.marker) return;
+
+  let element = item.marker.getElement && item.marker.getElement();
+  if(!element) return;
+
+  let serialEl = element.querySelector(".family-cinema-serial");
+  let nameEl = element.querySelector(".family-cinema-name");
+
+  if(serialEl){
+    serialEl.textContent = "S-" + (displayText(member.serial) || "-");
+  }
+
+  if(nameEl){
+    nameEl.textContent = displayText(member.name) || "-";
+  }
+}
+
+function advanceFamilyCinemaLabels(){
+  familyCinemaLabelItems.forEach(item=>{
+    if(!item.members || item.members.length === 0) return;
+
+    item.memberIndex =
+      (item.memberIndex + 1) %
+      item.members.length;
+
+    setFamilyCinemaMember(
+      item,
+      item.members[item.memberIndex]
+    );
+  });
+}
+
+function renderFloatingLabels(){
+
+  familyLabelIntervals.forEach(i=>clearInterval(i));
+
+  familyLabelIntervals = [];
+
+  clearFloatingLabels();
+
+  if(!navigationMode) return;
+
+  if(!floatingLabelsEnabled) return;
+
+  let zoom = map.getZoom();
+
+  if(zoom <= 15){
+
+  return;
+
+}
+if(zoom >= 18){
+
+  let usedLabelRects = [];
+
+  getNavigationLabelFamilies().forEach(familyObj=>{
+    if(!familyObj || !familyObj.head) return;
+    if(!Number.isFinite(familyObj.head.lat) || !Number.isFinite(familyObj.head.lon)) return;
+
+    let members = getVisibleFamilyMembers(familyObj);
+    if(members.length === 0) return;
+
+    let firstMember = getFamilyCinemaMember(familyObj) || members[0];
+
+    let placement = chooseFamilyCinemaPlacement(familyObj, usedLabelRects);
+
+    if(!placement) return;
+
+    usedLabelRects.push(padRect(placement.rect, 18));
+
+    let label = L.marker(
+      [familyObj.head.lat, familyObj.head.lon],
+      {
+        interactive:false,
+        zIndexOffset:650,
+        icon:L.divIcon({
+          className:"family-cinema-label",
+          html:buildFamilyCinemaLabel(familyObj, firstMember, placement),
+          iconSize:[1,1],
+          iconAnchor:[0,0]
+        })
+      }
+    ).addTo(map);
+
+    floatingLabels.push(label);
+    familyCinemaLabelItems.push({
+      family:familyObj.family,
+      marker:label,
+      members,
+      memberIndex:Math.max(members.indexOf(firstMember), 0)
+    });
+  });
+
+  familyLabelIntervals.push(setInterval(advanceFamilyCinemaLabels, 1800));
+
+}
+
+  // CLUSTER LABELS
+
+  if(zoom >= 16 && zoom <= 17){
+
+  clusterGroup.eachLayer(layer=>{
+
+    if(!(layer instanceof L.MarkerCluster))
+      return;
+
+      runClusterCinema(layer);
+
+    let childMarkers =
+      layer.getAllChildMarkers();
+
+    let nearbyFamilies =
+      childMarkers.filter(marker=>{
+
+        let head = marker.head;
+
+        if(!head) return false;
+
+        let d = getDistance(
+          currentLat,
+          currentLon,
+          head.lat,
+          head.lon
+        );
+
+        return d <= NEARBY_RADIUS_KM;
+
+      });
+
+    if(nearbyFamilies.length === 0)
+      return;
+
+    let namesHtml =
+      nearbyFamilies
+      .slice(0,3)
+      .map(m=>`
+        <div>
+          ${escapeHTML(m.head.name)}
+          •
+          ${escapeHTML(m.head.serial)}
+        </div>
+      `)
+      .join("");
+
+    if(nearbyFamilies.length > 3){
+
+      namesHtml += `
+      <div>
+        +${nearbyFamilies.length - 3} more
+      </div>
+      `;
+    }
+
+    let center =
+      layer.getLatLng();
+
+    let label = L.marker(
+      [center.lat, center.lng],
+      {
+        interactive:false,
+
+        icon:L.divIcon({
+
+          className:"family-float-label",
+
+          html:`
+          <div class="cluster-float-card">
+            ${namesHtml}
+          </div>
+          `,
+
+          iconSize:[160,80],
+          iconAnchor:[80,90]
+
+        })
+      }
+    ).addTo(map);
+
+    floatingLabels.push(label);
+  
+
+  });
+  }
+}
+
+function runClusterCinema(cluster){
+
+  if(!navigationMode) return;
+
+  if(map.getZoom() >= 18) return;
+
+  let clusterId = cluster._leaflet_id;
+
+  if(cluster.cinemaRunning)
+  return;
+
+cluster.cinemaRunning = true;
+
+  // prevent duplicate intervals
+  if(clusterCinemaIntervals[clusterId])
+    return;
+
+  let families =
+    getClusterFamilies(cluster);
+
+  // only nearby families
+  families = families.filter(f=>{
+
+    let d = getDistance(
+      currentLat,
+      currentLon,
+      f.head.lat,
+      f.head.lon
+    );
+
+    return d <= NEARBY_RADIUS_KM;
+
+  });
+
+  if(families.length === 0)
+    return;
+
+  let index = 0;
+
+  clusterCinemaIntervals[clusterId] =
+  setInterval(()=>{
+
+    // remove old label
+    cinematicClusterLabels.forEach(label=>{
+
+      map.removeLayer(label);
+
+    });
+
+    cinematicClusterLabels = [];
+
+    if(cinematicClusterLabels.length > 0){
+
+  cinematicClusterLabels.forEach(l=>{
+
+    map.removeLayer(l);
+
+  });
+
+  cinematicClusterLabels = [];
+
+}
+
+    let fam = families[index];
+
+    if(!fam) return;
+
+    let center =
+      cluster.getLatLng();
+
+    // anti-overlap offset
+    let angle =
+      (index * 65)
+      + (clusterId % 90);
+
+    let spreadRadius =
+  0.00012 +
+  ((clusterId % 5) * 0.00003);
+
+    let lat =
+  center.lat +
+  Math.cos(angle*Math.PI/180)
+  * spreadRadius;
+
+let lng =
+  center.lng +
+  Math.sin(angle*Math.PI/180)
+  * spreadRadius;
+
+    let label = L.marker(
+      [lat,lng],
+      {
+        interactive:false,
+
+        icon:L.divIcon({
+
+          className:"",
+
+          html:`
+
+          <div class="cinema-label">
+
+            S-${escapeHTML(fam.head.serial)}
+
+            <br>
+
+            ${escapeHTML(fam.head.name)}
+
+          </div>
+
+          `,
+
+          iconSize:[160,40],
+
+          iconAnchor:[80,20]
+
+        })
+      }
+    ).addTo(map);
+
+    cinematicClusterLabels.push(label);
+
+    index++;
+
+    if(index >= families.length){
+
+      index = 0;
+
+    }
+
+  },1400);
+}
+
+function updateDynamicNearestFamilies(){
+
+  if(!navigationMode) return;
+
+  let nearby = [];
+
+  markers.forEach(m=>{
+
+    if(visited[m.family]) return;
+
+    let d = getDistance(
+      currentLat,
+      currentLon,
+      m.head.lat,
+      m.head.lon
+    );
+
+    nearby.push({
+      ...m,
+      dist:d
+    });
+
+  });
+
+  // nearest first
+  nearby.sort((a,b)=>a.dist-b.dist);
+
+  let previousNearestKey =
+    nearestDynamicFamilies
+    .map(f=>String(f.family))
+    .join("|");
+
+  // top nearest families
+  nearestDynamicFamilies = nearby.slice(0,5);
+
+  let currentNearestKey =
+    nearestDynamicFamilies
+    .map(f=>String(f.family))
+    .join("|");
+
+  // remove old circles
+  if(window.dynamicFamilyCircles){
+
+    window.dynamicFamilyCircles.forEach(c=>{
+      map.removeLayer(c);
+    });
+
+  }
+
+  window.dynamicFamilyCircles = [];
+
+  // create new glowing circles
+  nearestDynamicFamilies.forEach(f=>{
+
+    let circle = L.circleMarker(
+      [f.head.lat, f.head.lon],
+      {
+        radius:20,
+        color:"#f59e0b",
+        weight:4,
+        opacity:1,
+        fillColor:"#fde047",
+        fillOpacity:0.25
+      }
+    ).addTo(map);
+
+    // glow effect
+    if(circle._path){
+      circle._path.style.filter =
+        "drop-shadow(0 0 10px #facc15)";
+    }
+
+    window.dynamicFamilyCircles.push(circle);
+
+  });
+
+  // refresh marker colors and UI
+  
+  updateNavigationStatusUI();
+
+  if(
+    currentNearestKey !== previousNearestKey ||
+    familyCinemaLabelItems.length === 0
+  ){
+    renderFloatingLabels();
+  }
+
+}
+
+function startSmartRoute(){
+
+  if(!hasCurrentLocation()){
+    alert("GPS location not ready yet. Please wait a moment and try again.");
+    return;
+  }
+
+  if(nearestList.length === 0){
+    loadNearest();
+  }
+
+  if(nearestList.length === 0) return;
+
+  routeIndex = 0;
+  routeActive = true;
+  goToNext();
+}
+
+function goToNext(){
+
+  if(routeIndex >= nearestList.length){
+    routeActive = false;
+    alert("All done!");
+    return;
+  }
+
+  goToFamily(routeIndex);
+}
+
+function recenterMe(){
+
+  if(currentLat === null || currentLon === null){
+
+    alert("GPS not ready");
+
+    return;
+  }
+
+  map.panTo(
+    [currentLat,currentLon],
+    {
+      animate:true,
+      duration:1
+    }
+  );
+
+  if(navigationMode){
+    updateNavigationStatusUI();
+  }
+}
+
+function clearRoute(){
+
+  nearestList = [];
+  selectedFamily = null;
+  routeActive = false;
+  routeIndex = 0;
+
+  if(routeLine){
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+
+  updateColors();
+  nearestLabels.forEach(l=>map.removeLayer(l));
+  nearestLabels = [];
+
+  if(window.currentLabel){
+    map.removeLayer(window.currentLabel);
+    window.currentLabel = null;
+  }
+
+  map.closePopup();
+  closeCluster();
+  closeStaticFamilyLabel();
+  collapseExplodedFamilies();
+
+  closePanel();
+
+  document.getElementById("panelContent").innerHTML="Select a family...";
+}
+
+function showVisited(){
+
+  closeCluster();
+  closeStaticFamilyLabel();
+  clearFloatingLabels();
+
+  let popup =
+    document.getElementById("clusterPopup");
+
+  let visitedFamilies = [];
+
+  Object.keys(visited).forEach(family=>{
+
+    let obj = markers.find(m=>m.family == family);
+
+    if(obj){
+      visitedFamilies.push(obj);
+    }
+
+  });
+
+  visitedFamilies =
+    sortFamiliesBySerial(visitedFamilies);
+
+  let totalFamilies =
+    visitedFamilies.length;
+
+  let totalMembers =
+    visitedFamilies.reduce((sum,obj)=>{
+
+      return sum + (
+        familiesMap[obj.family]
+        ? familiesMap[obj.family].length
+        : 0
+      );
+
+    },0);
+
+  let html = `
+
+    <div
+      style="
+        width:min(220px,62vw);
+        display:flex;
+        flex-direction:column;
+        gap:8px;
+      "
+    >
+
+      <div
+        style="
+          font-size:14px;
+          font-weight:900;
+          color:white;
+          text-transform:uppercase;
+          letter-spacing:1px;
+        "
+      >
+        ✅ Visited Families
+      </div>
+
+      <div
+        style="
+          background:rgba(255,255,255,0.05);
+          border:1px solid rgba(255,255,255,0.08);
+          border-radius:14px;
+          padding:8px 10px;
+          font-size:12px;
+          color:#facc15;
+          font-weight:800;
+        "
+      >
+        Families: ${totalFamilies}<br>
+        Members: ${totalMembers}
+      </div>
+
+      <div
+        style="
+          display:flex;
+          flex-direction:column;
+          gap:8px;
+          max-height:240px;
+          overflow:auto;
+        "
+      >
+
+  `;
+
+  if(visitedFamilies.length === 0){
+
+    html += `
+
+      <div
+        style="
+          color:#cbd5e1;
+          font-size:12px;
+          text-align:center;
+          padding:18px;
+        "
+      >
+        No visited family
+      </div>
+
+    `;
+
+  }else{
+
+    visitedFamilies.forEach(obj=>{
+
+      html += `
+
+        <div
+
+          onclick="
+            zoomToFamily(
+              '${obj.family}'
+            );
+
+            previewFamily(
+              '${obj.family}',
+              familiesMap['${obj.family}'][0],
+              familiesMap['${obj.family}']
+            );
+          "
+
+          style="
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:10px;
+
+            padding:8px 10px;
+
+            border-radius:14px;
+
+            background:rgba(255,255,255,0.05);
+
+            border:1px solid rgba(255,255,255,0.08);
+
+            cursor:pointer;
+          "
+        >
+
+          <div
+            style="
+              min-width:0;
+              flex:1;
+            "
+          >
+
+            <div
+              style="
+                color:#7dd3fc;
+                font-size:10px;
+                font-weight:900;
+              "
+            >
+              F-${obj.family}
+            </div>
+
+            <div
+              style="
+                color:white;
+                font-size:12px;
+                font-weight:900;
+                text-transform:uppercase;
+                overflow:hidden;
+                text-overflow:ellipsis;
+                white-space:nowrap;
+              "
+            >
+              ${obj.head.name}
+            </div>
+
+          </div>
+
+          <div
+            style="
+              color:#22c55e;
+              font-size:11px;
+              font-weight:900;
+            "
+          >
+            VISITED
+          </div>
+
+        </div>
+
+      `;
+
+    });
+
+  }
+
+  html += `
+
+      </div>
+
+      <button
+        onclick="closeCluster()"
+
+        style="
+          margin-top:6px;
+          background:#111827;
+          color:white;
+          border:none;
+          border-radius:999px;
+          padding:8px;
+          font-size:12px;
+          font-weight:800;
+        "
+      >
+        Close
+      </button>
+
+    </div>
+
+  `;
+
+  popup.innerHTML = html;
+
+  popup.style.display = "block";
+
+}
+
+function zoomToFamily(family){
+
+  let obj =
+    markers.find(m=>m.family == family);
+
+  if(!obj) return;
+
+  map.flyTo(
+    [obj.head.lat, obj.head.lon],
+    19,
+    {
+      duration:0.8
+    }
+  );
+
+}
+
+function goBack(){
+
+  map.closePopup();
+  closeCluster();
+  closeStaticFamilyLabel();
+
+  collapseExplodedFamilies();
+
+  if(window.currentLabel){
+  map.removeLayer(window.currentLabel);
+  window.currentLabel = null;
+  }
+
+  // nearest history
+  if(nearestList.length > 0){
+
+    panelMode = "nearest";
+
+    showNearestPanel();
+
+    return;
+  }
+
+  panelMode = "default";
+
+  document.getElementById("panelContent").innerHTML =
+    "Select a family...";
+}
+
+function getMarkerIcon(color){
+
+  return L.divIcon({
+    html:`<div style="
+      width:16px;
+      height:16px;
+      background:${color};
+      border-radius:50%;
+      border:2px solid white;
+    "></div>`,
+    className:""
+  });
+
+}
+
+function openVisitedFamily(family){
+
+  let obj = markers.find(m=>m.family == family);
+
+  if(!obj) return;
+
+  panelMode = "visited"; // 🔥 keep history
+
+  map.flyTo([obj.head.lat, obj.head.lon], 18);
+
+  showFamilySelection(
+  obj.family,
+  obj.head,
+  obj.members,
+  false
+ );
+}
+
+function syncVisitedToSheet(family, status){
+
+  console.log("📡 Sending to sheet:", family, status);
+
+  if(typeof SHEET_API === 'undefined' || !SHEET_API){
+    console.log("⚠️ SHEET_API not configured - skipping sync");
+    return;
+  }
+
+  fetch(SHEET_API,{
+    method:"POST",
+    mode:"no-cors",   // 🔥 VERY IMPORTANT FIX
+    body: JSON.stringify({
+      family: family,
+      status: status
+    }),
+    headers:{
+      "Content-Type":"text/plain;charset=utf-8"
+    }
+  })
+  .then(()=>{
+    console.log("✅ Visit sync request sent (no-cors response is hidden)");
+  })
+  .catch(err=>{
+    console.log("⚠️ Sync failed:", err);
+  });
+
+}
+
+function loadVisitedFromSheet(){
+
+  fetch(SHEET_API)
+  .then(r=>r.json())
+  .then(data=>{
+
+    console.log("🔄 Loading visited from sheet...");
+
+    if(!Array.isArray(data)){
+      throw new Error("Visited sheet response is not a list");
+    }
+
+    visited = {}; // 🔥 RESET FIRST
+
+    data.forEach(row=>{
+
+      if(row.status === "VISITED"){
+        visited[row.family] = true;
+      }
+
+      if(row.status === "UNVISIT"){
+        delete visited[row.family];
+      }
+
+    });
+
+    localStorage.setItem("visited", JSON.stringify(visited));
+
+    // 🔥 CRITICAL FIX
+    repaintMarkersFromCloud();
+
+    console.log("✅ Visited synced from sheet");
+
+  })
+  .catch(err=>{
+    console.log("⚠️ Sheet load failed (offline mode)", err);
+  });
+
+}
+
+function repaintMarkersFromCloud(){
+
+  markers.forEach(m=>{
+
+    let color = "#2563eb";
+
+    if(visited[m.family]) color = "#16a34a";
+    if(selectedFamily === m.family) color = "#9333ea";
+
+    if(m.lastColor !== color){
+
+      m.marker.setIcon(
+      getMarkerIcon(color)
+     );
+
+  m.lastColor = color;
+  }
+
+  });
+
+  refreshClusterColors();
+  updateDashboard();
+
+}
+
+// MOBILE PANEL TOGGLE
+
+const panel = document.getElementById("panel");
+
+function togglePanel(){
+
+  if(window.innerWidth <= 768){
+
+  panel.classList.toggle("expanded");
+  
+  }
+
+}
+
+function openPanel(){
+  
+  panel.classList.add("open");
+  
+  if(window.innerWidth <= 768){
+    panel.classList.add("expanded");
+  }
+}
+
+function closePanel(){
+
+  if(window.innerWidth <= 768){
+
+    panel.classList.remove("expanded");
+
+  }
+
+  panel.classList.remove("open");
+  map.closePopup();
+
+}
+
+registerClusterEvents();
+
+navigator.geolocation.getCurrentPosition(
+
+  function(pos){
+
+    currentLat = pos.coords.latitude;
+    currentLon = pos.coords.longitude;
+
+    console.log("✅ Initial GPS Ready");
+
+    if(!dataLoaded){
+      loadData();
+    }
+
+  },
+
+  function(err){
+
+    console.log("❌ Initial GPS Error", err);
+
+    alert(
+      "GPS Error Code: " +
+      err.code +
+      "\n" +
+      err.message
+    );
+
+    if(!dataLoaded){
+      loadData();
+    }
+
+  },
+
+  {
+    enableHighAccuracy:true,
+    timeout:15000,
+    maximumAge:0
+  }
+
+);
+
+document.addEventListener(
+  "visibilitychange",
+  function(){
+
+    if(document.hidden){
+
+      
+
+    }else if(locationWatchId === null){
+
+      if(dataLoaded && navigationMode){
+        trackLocation();
+      }
+
+    }
+
+  }
+);
+
+map.on("zoomend",()=>{
+
+  clearClusterCinema();
+
+  renderFloatingLabels();
+
+});
+
+map.on("movestart",()=>{
+
+  clearClusterCinema();
+
+});
+
+if("serviceWorker" in navigator){
+
+  navigator.serviceWorker.register("./service-worker.js")
+  .then(()=>{
+    console.log("✅ Service Worker Registered");
+  })
+  .catch(err=>{
+    console.log("SW ERROR", err);
+  });
+
+}
+
+
+
+</script>
+<script>
+
+if("serviceWorker" in navigator){
+
+  navigator.serviceWorker.register("./service-worker.js")
+  .then(()=>{
+
+    console.log("✅ Service Worker Registered");
+
+  });
+
+}
+
+</script>
+
+</body>
+</html>
